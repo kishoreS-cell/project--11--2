@@ -1,0 +1,2881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowNet — Report flooding &amp; drainage issues</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Orbitron:wght@600;700;800;900&display=swap" rel="stylesheet">
+<style>
+
+/* ---------- Tokens : FlowNet neon-ops theme ---------- */
+:root{
+  --bg:#050b14;
+  --panel:#0b1524;
+  --panel-2:#101f33;
+  --border:#1c3a52;
+  --text:#e6f6ff;
+  --text-dim:#7fa3c2;
+  --brand:#22d3ee;
+  --brand-dark:#67e8f9;
+  --brand-soft:#0d2436;
+  --teal:#2dd4bf;
+  --teal-soft:#0c2a26;
+  --amber:#fbbf24;
+  --amber-soft:#2e2410;
+  --danger:#fb7185;
+  --danger-soft:#301019;
+  --safe:#4ade80;
+  --safe-soft:#0f2a1c;
+  --shadow:0 1px 3px rgba(0,0,0,.5);
+  --glow-cyan:0 0 1px rgba(34,211,238,.6), 0 0 18px rgba(34,211,238,.16), inset 0 0 22px rgba(34,211,238,.04);
+  --glow-cyan-strong:0 0 1px rgba(34,211,238,.8), 0 0 32px rgba(34,211,238,.30), inset 0 0 30px rgba(34,211,238,.07);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#050b14; --panel:#0b1524; --panel-2:#101f33; --border:#1c3a52;
+    --text:#e6f6ff; --text-dim:#7fa3c2;
+    --brand:#22d3ee; --brand-dark:#67e8f9; --brand-soft:#0d2436;
+    --teal:#2dd4bf; --teal-soft:#0c2a26;
+    --amber:#fbbf24; --amber-soft:#2e2410;
+    --danger:#fb7185; --danger-soft:#301019;
+    --safe:#4ade80; --safe-soft:#0f2a1c;
+    --shadow:0 1px 3px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#050b14; --panel:#0b1524; --panel-2:#101f33; --border:#1c3a52;
+  --text:#e6f6ff; --text-dim:#7fa3c2;
+  --brand:#22d3ee; --brand-dark:#67e8f9; --brand-soft:#0d2436;
+  --teal:#2dd4bf; --teal-soft:#0c2a26;
+  --amber:#fbbf24; --amber-soft:#2e2410;
+  --danger:#fb7185; --danger-soft:#301019;
+  --safe:#4ade80; --safe-soft:#0f2a1c;
+  --shadow:0 1px 3px rgba(0,0,0,.5);
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:'Public Sans', sans-serif;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+  position:relative;
+}
+.mono{ font-family:'IBM Plex Mono', monospace; }
+button, input, select, textarea{ font-family:inherit; }
+h1,h2,h3{ margin:0; }
+a{ color:var(--brand); }
+::selection{ background:var(--brand); color:#00222a; }
+:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+}
+
+/* ---------- Header / nav ---------- */
+.site-header{
+  position:sticky; top:0; z-index:50;
+  background:var(--panel); border-bottom:1px solid var(--border);
+}
+.header-inner{
+  max-width:1080px; margin:0 auto; padding:0 20px;
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  height:62px;
+}
+.brand{ display:flex; align-items:center; gap:9px; flex-shrink:0; }
+.brand-mark{ width:30px; height:30px; border-radius:8px; background:linear-gradient(155deg, var(--brand), var(--teal)); display:flex; align-items:center; justify-content:center; }
+.brand-mark svg{ width:16px; height:16px; }
+.brand-name{ font-weight:800; font-size:16.5px; letter-spacing:-.01em; }
+
+.pub-nav{ display:flex; gap:2px; overflow-x:auto; }
+.pub-nav button{
+  border:none; background:none; padding:9px 13px; border-radius:8px;
+  font-size:13.5px; font-weight:600; color:var(--text-dim); cursor:pointer; white-space:nowrap;
+}
+.pub-nav button:hover{ background:var(--panel-2); color:var(--text); }
+.lang-select{
+  background:var(--panel); color:var(--text); border:1px solid var(--border);
+  border-radius:8px; padding:6px 10px; font-size:13px; font-weight:600; cursor:pointer;
+}
+.lang-select:focus{ outline:1px solid var(--text-dim); }
+.pub-nav button.active{ background:var(--brand-soft); color:var(--brand); }
+
+.header-cta{
+  flex-shrink:0; display:none;
+  background:var(--brand); color:#fff; border:none; border-radius:8px;
+  padding:9px 15px; font-size:13px; font-weight:700; cursor:pointer;
+}
+.header-cta:hover{ background:var(--brand-dark); }
+@media (min-width:720px){ .header-cta{ display:inline-block; } }
+
+/* ---------- Layout ---------- */
+.page{ display:none; }
+.page.active{ display:block; }
+.wrap{ max-width:1080px; margin:0 auto; padding:0 20px; }
+.narrow{ max-width:640px; margin:0 auto; padding:0 20px; }
+
+/* ---------- Home ---------- */
+.hero{
+  background:linear-gradient(180deg, var(--brand-soft), var(--bg) 85%);
+  padding:52px 0 40px; border-bottom:1px solid var(--border);
+}
+.hero-inner{ max-width:1080px; margin:0 auto; padding:0 20px; display:grid; grid-template-columns:1.2fr 1fr; gap:40px; align-items:center; }
+@media (max-width:820px){ .hero-inner{ grid-template-columns:1fr; } }
+.status-chip{
+  display:inline-flex; align-items:center; gap:7px;
+  background:var(--panel); border:1px solid var(--border); border-radius:20px;
+  padding:6px 12px 6px 8px; font-size:12.5px; font-weight:600; color:var(--text-dim);
+  box-shadow:var(--shadow);
+}
+.status-chip .dot{ width:8px; height:8px; border-radius:50%; background:var(--safe); }
+.status-chip .dot.warn{ background:var(--amber); }
+.status-chip .dot.crit{ background:var(--danger); }
+
+.hero h1{ font-size:clamp(28px,4vw,40px); line-height:1.12; margin:16px 0 12px; letter-spacing:-.015em; }
+.hero p{ font-size:16px; color:var(--text-dim); line-height:1.55; max-width:480px; margin:0 0 22px; }
+.hero-actions{ display:flex; gap:12px; flex-wrap:wrap; }
+
+.btn{
+  border:none; border-radius:9px; cursor:pointer; font-weight:700; font-size:14.5px;
+  padding:13px 20px; display:inline-flex; align-items:center; gap:8px;
+}
+.btn-primary{ background:var(--brand); color:#fff; }
+.btn-primary:hover{ background:var(--brand-dark); }
+.btn-secondary{ background:var(--panel); color:var(--text); border:1px solid var(--border); }
+.btn-secondary:hover{ background:var(--panel-2); }
+.btn-ghost{ background:none; color:var(--brand); padding:13px 6px; }
+.btn:disabled{ opacity:.45; cursor:default; }
+.btn-block{ width:100%; justify-content:center; }
+
+.hero-visual{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px; box-shadow:var(--shadow); }
+.hero-visual svg{ width:100%; height:auto; display:block; }
+
+.section{ padding:44px 0; }
+.section-title{ font-size:22px; font-weight:800; margin:0 0 6px; letter-spacing:-.01em; }
+.section-sub{ color:var(--text-dim); font-size:14.5px; margin:0 0 26px; max-width:560px; }
+
+.steps-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+@media (max-width:760px){ .steps-grid{ grid-template-columns:1fr; } }
+.step-card{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; }
+.step-num{ width:30px; height:30px; border-radius:8px; background:var(--brand-soft); color:var(--brand); font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; margin-bottom:12px; }
+.step-card h3{ font-size:15px; margin-bottom:5px; }
+.step-card p{ font-size:13px; color:var(--text-dim); line-height:1.5; margin:0; }
+
+.report-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
+@media (max-width:820px){ .report-grid{ grid-template-columns:repeat(2,1fr); } }
+.report-item{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px; }
+.report-item .badge{ display:inline-flex; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:20px; margin-bottom:8px; }
+.report-item .badge.safe{ background:var(--safe-soft); color:var(--safe); }
+.report-item .badge.warn{ background:var(--amber-soft); color:var(--amber); }
+.report-item .loc{ font-weight:700; font-size:13px; }
+.report-item .desc{ font-size:12px; color:var(--text-dim); margin-top:3px; }
+
+.footer-note{ border-top:1px solid var(--border); padding:26px 0 40px; text-align:center; }
+.footer-note p{ font-size:12.5px; color:var(--text-dim); margin:0 0 8px; }
+.footer-note button{ background:none; border:none; color:var(--text-dim); text-decoration:underline; font-size:12.5px; cursor:pointer; }
+
+/* ---------- Report wizard ---------- */
+.wizard-head{ padding:28px 0 6px; }
+.wizard-head h1{ font-size:24px; }
+.wizard-head p{ color:var(--text-dim); font-size:13.5px; margin:6px 0 0; }
+
+.progress-track{ display:flex; gap:6px; margin:20px 0 26px; }
+.progress-seg{ flex:1; height:5px; border-radius:4px; background:var(--panel-2); }
+.progress-seg.done{ background:var(--teal); }
+.progress-seg.current{ background:var(--brand); }
+.progress-labels{ display:flex; justify-content:space-between; font-size:11px; color:var(--text-dim); margin-bottom:6px; }
+
+.wizard-card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:24px; box-shadow:var(--shadow); margin-bottom:20px; }
+.wizard-step{ display:none; }
+.wizard-step.active{ display:block; }
+.wizard-step h2{ font-size:17px; margin-bottom:4px; }
+.wizard-step .hint{ font-size:13px; color:var(--text-dim); margin:0 0 18px; }
+
+.issue-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+@media (max-width:560px){ .issue-grid{ grid-template-columns:repeat(2,1fr); } }
+.issue-card{
+  border:1.5px solid var(--border); background:var(--panel-2); border-radius:11px;
+  padding:16px 12px; text-align:center; cursor:pointer;
+}
+.issue-card:hover{ border-color:var(--brand); }
+.issue-card.selected{ border-color:var(--brand); background:var(--brand-soft); }
+.issue-card svg{ width:26px; height:26px; margin-bottom:8px; color:var(--brand); }
+.issue-card .lbl{ font-size:12.5px; font-weight:700; }
+
+.field{ margin-bottom:16px; }
+.field label{ display:block; font-size:13px; font-weight:700; margin-bottom:6px; }
+.field .field-hint{ font-size:11.5px; color:var(--text-dim); font-weight:400; margin-top:4px; }
+.field input[type=text], .field input[type=tel], .field input[type=email], .field input[type=password], .field select, .field textarea{
+  width:100%; padding:11px 12px; border-radius:9px; border:1px solid var(--border);
+  background:var(--panel); color:var(--text); font-size:14px;
+}
+.field textarea{ resize:vertical; min-height:90px; }
+.field input:focus, .field select:focus, .field textarea:focus{ border-color:var(--brand); }
+
+/* ---------- Login ---------- */
+.login-wrap{ min-height:calc(100vh - 62px); display:flex; align-items:center; justify-content:center; padding:40px 20px; }
+.login-card{ width:100%; max-width:380px; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:28px 26px; box-shadow:var(--shadow); }
+.login-icon{ width:44px; height:44px; border-radius:10px; background:var(--brand-soft); color:var(--brand); display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+.login-icon svg{ width:22px; height:22px; }
+.login-card h1{ font-size:19px; margin-bottom:4px; }
+.login-card .section-sub{ margin-bottom:20px; }
+.login-error{ display:none; background:var(--danger-soft); color:var(--danger); font-size:12.5px; font-weight:600; padding:10px 12px; border-radius:9px; margin-bottom:14px; }
+.login-error.show{ display:block; }
+.login-hint{ font-size:11.5px; color:var(--text-dim); margin-top:16px; padding-top:14px; border-top:1px solid var(--border); line-height:1.6; }
+.login-hint code{ background:var(--panel-2); padding:1px 5px; border-radius:5px; font-family:'IBM Plex Mono', monospace; }
+.login-back{ display:inline-block; margin-top:16px; background:none; border:none; color:var(--text-dim); font-size:12.5px; font-weight:600; cursor:pointer; padding:0; }
+.login-back:hover{ color:var(--brand); }
+.login-ok{ display:none; background:var(--safe-soft, rgba(34,160,90,.12)); color:var(--safe); font-size:12.5px; font-weight:600; padding:10px 12px; border-radius:9px; margin-bottom:14px; }
+.login-ok.show{ display:block; }
+.login-wrap{ min-height:100vh; }
+.login-card{ max-width:400px; }
+.login-brand{ display:flex; align-items:center; gap:9px; justify-content:center; margin-bottom:18px; }
+.login-brand .brand-mark{ width:26px; height:26px; border-radius:7px; background:var(--brand); display:flex; align-items:center; justify-content:center; }
+.login-brand .brand-mark svg{ width:15px; height:15px; }
+.login-brand span{ font-weight:800; font-size:16px; letter-spacing:-.3px; }
+.auth-switch{ text-align:center; font-size:12.5px; color:var(--text-dim); margin-top:18px; padding-top:14px; border-top:1px solid var(--border); }
+.auth-switch button{ background:none; border:none; color:var(--brand); font-weight:700; font-size:12.5px; cursor:pointer; padding:0; }
+.auth-switch button:hover{ text-decoration:underline; }
+.field-err{ display:none; font-size:11.5px; color:var(--danger); font-weight:600; margin-top:5px; }
+.field-err.show{ display:block; }
+.field input.invalid, .field select.invalid{ border-color:var(--danger); }
+.pw-row{ display:flex; gap:10px; }
+.pw-row .field{ flex:1; }
+.pw-meter{ height:4px; border-radius:3px; background:var(--panel-2); margin-top:7px; overflow:hidden; }
+.pw-meter i{ display:block; height:100%; width:0%; background:var(--danger); transition:width .2s, background .2s; }
+.offline-note{ display:none; background:var(--amber-soft, rgba(217,150,30,.12)); color:var(--amber); font-size:11.5px; font-weight:600; padding:9px 11px; border-radius:9px; margin-bottom:14px; line-height:1.5; }
+.offline-note.show{ display:block; }
+/* header account area */
+.acct{ display:flex; align-items:center; gap:8px; }
+.acct-chip{ display:inline-flex; align-items:center; gap:7px; background:var(--panel-2); border:1px solid var(--border); border-radius:20px; padding:5px 11px; font-size:12px; font-weight:700; }
+.acct-chip .av{ width:20px; height:20px; border-radius:50%; background:var(--brand); color:#fff; display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:800; }
+.acct-chip .rl{ color:var(--text-dim); font-weight:600; font-size:11px; }
+.acct-out{ background:none; border:1px solid var(--border); border-radius:8px; color:var(--text-dim); font-size:12px; font-weight:700; padding:6px 10px; cursor:pointer; }
+.acct-out:hover{ color:var(--danger); border-color:var(--danger); }
+body.auth-gate .site-header{ display:none; }
+@media(max-width:720px){ .acct-chip .rl{ display:none; } }
+.staff-badge{ display:inline-flex; align-items:center; gap:6px; background:var(--panel-2); border:1px solid var(--border); border-radius:20px; padding:6px 12px; font-size:12px; font-weight:600; color:var(--text-dim); }
+.staff-badge .dot{ width:7px; height:7px; border-radius:50%; background:var(--safe); }
+
+.radio-list{ display:flex; flex-direction:column; gap:8px; }
+.radio-item{
+  display:flex; align-items:flex-start; gap:10px; border:1.5px solid var(--border);
+  border-radius:10px; padding:12px 13px; cursor:pointer;
+}
+.radio-item:hover{ border-color:var(--brand); }
+.radio-item.selected{ border-color:var(--brand); background:var(--brand-soft); }
+.radio-item input{ margin-top:3px; accent-color:var(--brand); }
+.radio-item .rt{ font-size:13.5px; font-weight:700; }
+.radio-item .rd{ font-size:12px; color:var(--text-dim); margin-top:1px; }
+
+.file-drop{
+  border:1.5px dashed var(--border); border-radius:10px; padding:18px; text-align:center;
+  font-size:12.5px; color:var(--text-dim); cursor:pointer; background:var(--panel-2);
+}
+.file-drop:hover{ border-color:var(--brand); }
+.file-drop .fname{ color:var(--brand); font-weight:700; margin-top:4px; }
+
+.zone-picker{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:4px; }
+@media (max-width:480px){ .zone-picker{ grid-template-columns:1fr; } }
+.zone-chip{
+  border:1.5px solid var(--border); border-radius:9px; padding:9px 11px; cursor:pointer;
+  font-size:12.5px; font-weight:600; display:flex; align-items:center; justify-content:space-between; gap:6px;
+}
+.zone-chip:hover{ border-color:var(--brand); }
+.zone-chip.selected{ border-color:var(--brand); background:var(--brand-soft); color:var(--brand); }
+.zone-chip .rk{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+.wizard-nav{ display:flex; justify-content:space-between; gap:10px; margin-top:4px; }
+.review-list{ display:flex; flex-direction:column; }
+.review-row{ display:flex; justify-content:space-between; gap:14px; padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.review-row:last-child{ border-bottom:none; }
+.review-row .k{ color:var(--text-dim); flex-shrink:0; }
+.review-row .v{ text-align:right; font-weight:600; }
+
+.confirm-card{ text-align:center; padding:36px 24px; }
+.confirm-icon{ width:56px; height:56px; border-radius:50%; background:var(--safe-soft); color:var(--safe); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; }
+.confirm-icon svg{ width:28px; height:28px; }
+.ticket-id-box{
+  display:inline-flex; align-items:center; gap:10px; background:var(--panel-2); border:1px solid var(--border);
+  border-radius:10px; padding:10px 16px; margin:14px 0; font-size:16px; font-weight:700;
+}
+.copy-btn{ background:none; border:1px solid var(--border); border-radius:7px; padding:5px 9px; font-size:11px; cursor:pointer; color:var(--text-dim); }
+.copy-btn:hover{ color:var(--text); }
+
+/* ---------- Track ---------- */
+.track-search{ display:flex; gap:10px; margin:20px 0 8px; }
+.track-search input{ flex:1; padding:12px 14px; border-radius:9px; border:1px solid var(--border); font-size:14.5px; background:var(--panel); color:var(--text); }
+.try-note{ font-size:12px; color:var(--text-dim); margin-bottom:24px; }
+.try-note button{ background:none; border:none; color:var(--brand); font-weight:700; cursor:pointer; padding:0; font-size:12px; }
+
+.timeline{ display:flex; flex-direction:column; margin-top:22px; }
+.tl-item{ display:flex; gap:14px; }
+.tl-marker{ display:flex; flex-direction:column; align-items:center; }
+.tl-dot{ width:20px; height:20px; border-radius:50%; background:var(--panel-2); border:2px solid var(--border); flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+.tl-dot.done{ background:var(--teal); border-color:var(--teal); }
+.tl-dot.done svg{ width:11px; height:11px; color:#fff; }
+.tl-line{ width:2px; flex:1; background:var(--border); min-height:28px; }
+.tl-line.done{ background:var(--teal); }
+.tl-body{ padding-bottom:22px; }
+.tl-title{ font-weight:700; font-size:14px; }
+.tl-time{ font-size:11.5px; color:var(--text-dim); margin-top:1px; }
+
+.ticket-summary{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-top:20px; }
+
+/* ---------- City status ---------- */
+.risk-banner{ display:flex; align-items:center; gap:14px; padding:18px 20px; border-radius:12px; margin:20px 0 26px; }
+.risk-banner.safe{ background:var(--safe-soft); }
+.risk-banner.warn{ background:var(--amber-soft); }
+.risk-banner.crit{ background:var(--danger-soft); }
+.risk-banner .ric{ font-size:24px; }
+.risk-banner .rt{ font-weight:800; font-size:15.5px; }
+.risk-banner .rs{ font-size:12.5px; color:var(--text-dim); }
+
+.area-list{ display:flex; flex-direction:column; gap:10px; }
+.area-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--panel); border:1px solid var(--border); border-radius:11px; padding:14px 16px; }
+.area-row .an{ font-weight:700; font-size:13.5px; }
+.area-row .as{ font-size:12px; color:var(--text-dim); margin-top:2px; }
+
+.status-map-card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:26px; }
+.status-map-card svg{ width:100%; height:auto; display:block; }
+
+/* ---------- OPS ---------- */
+.ops-shell{ display:grid; grid-template-columns:200px 1fr; min-height:70vh; }
+@media (max-width:820px){ .ops-shell{ grid-template-columns:1fr; } }
+.ops-side{ border-right:1px solid var(--border); padding:18px 12px; }
+@media (max-width:820px){ .ops-side{ border-right:none; border-bottom:1px solid var(--border); display:flex; gap:6px; overflow-x:auto; } }
+.ops-nav-item{ display:block; width:100%; text-align:left; padding:9px 11px; border-radius:8px; border:none; background:none; font-size:13px; font-weight:600; color:var(--text-dim); cursor:pointer; white-space:nowrap; }
+.ops-nav-item:hover{ background:var(--panel-2); color:var(--text); }
+.ops-nav-item.active{ background:var(--brand-soft); color:var(--brand); }
+.ops-main{ padding:20px 24px 40px; }
+.ops-view{ display:none; }
+.ops-view.active{ display:block; }
+.ops-grid{ display:grid; gap:14px; }
+.ops-top{ grid-template-columns:repeat(4,1fr); }
+@media (max-width:760px){ .ops-top{ grid-template-columns:repeat(2,1fr); } }
+.ops-card{ background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+.ops-card h4{ font-size:11.5px; color:var(--text-dim); font-weight:500; margin:0 0 4px; }
+.ops-card .big{ font-size:22px; font-weight:800; }
+
+/* AI Nowcasting (merged from flownet-ops-dashboard.html) */
+.now-grid{ display:grid; grid-template-columns:300px 1fr; gap:14px; }
+@media (max-width:900px){ .now-grid{ grid-template-columns:1fr; } }
+.flow-strip{ display:flex; align-items:center; gap:6px; overflow-x:auto; padding:2px 0 12px; }
+.flow-node{ border:1px solid var(--border); border-radius:999px; padding:6px 12px; font-size:11.5px; font-weight:600; color:var(--text-dim); white-space:nowrap; background:var(--panel); }
+.flow-arrow{ color:var(--text-dim); flex-shrink:0; font-size:13px; }
+.gauge-wrap{ display:flex; flex-direction:column; align-items:center; gap:6px; padding-top:6px; }
+.gauge-readout{ text-align:center; }
+.gauge-readout .lvl{ font-size:26px; font-weight:700; margin-top:6px; }
+.gauge-readout .sub{ font-size:12px; color:var(--text-dim); }
+.pred-list{ display:flex; flex-direction:column; gap:0; margin-top:10px; }
+.pred-row{ display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.pred-row:last-child{ border-bottom:none; }
+.pred-row .k{ color:var(--text-dim); }
+.pred-row .v{ font-weight:600; font-family:'IBM Plex Mono',monospace; }
+.chart-card svg{ width:100%; height:auto; display:block; }
+
+.demo-btn{ padding:9px 14px; border-radius:8px; border:1px solid var(--teal); background:var(--teal); color:#04241f; font-weight:700; font-size:12.5px; cursor:pointer; }
+.demo-btn:disabled{ opacity:.5; }
+
+table.tickets{ width:100%; border-collapse:collapse; font-size:12.5px; }
+table.tickets th{ text-align:left; padding:9px 12px; color:var(--text-dim); font-weight:600; border-bottom:1px solid var(--border); font-size:11px; }
+table.tickets td{ padding:10px 12px; border-bottom:1px solid var(--border); }
+table.tickets tr:last-child td{ border-bottom:none; }
+.src-tag{ font-size:10px; color:var(--text-dim); }
+.prio{ font-weight:700; }
+.prio.high{ color:var(--danger); }
+.prio.med{ color:var(--amber); }
+.prio.low{ color:var(--text-dim); }
+.table-wrap{ overflow-x:auto; background:var(--panel); border:1px solid var(--border); border-radius:10px; }
+
+.tag{ display:inline-flex; padding:3px 9px; border-radius:20px; font-size:10.5px; font-weight:700; }
+.tag.safe{ background:var(--safe-soft); color:var(--safe); }
+.tag.warn{ background:var(--amber-soft); color:var(--amber); }
+.tag.crit{ background:var(--danger-soft); color:var(--danger); }
+
+.sim-banner{ display:none; align-items:center; gap:10px; background:var(--amber-soft); border:1px solid var(--border); border-radius:10px; padding:9px 14px; margin-bottom:14px; font-size:12px; flex-wrap:wrap; }
+.sim-banner.show{ display:flex; }
+.sim-step{ padding:3px 8px; border-radius:20px; border:1px solid var(--border); font-size:10.5px; color:var(--text-dim); background:var(--panel); }
+.sim-step.active{ border-color:var(--amber); color:var(--amber); font-weight:700; }
+.sim-step.done{ border-color:var(--safe); color:var(--safe); }
+
+.visually-hidden{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+
+/* =========================================================
+   AMBIENT 3D / ANIMATED BACKDROP
+========================================================= */
+.fx-grid{
+  position:fixed; inset:0; z-index:-3; pointer-events:none;
+  background-image:
+    linear-gradient(rgba(34,211,238,.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34,211,238,.14) 1px, transparent 1px);
+  background-size:42px 42px;
+  -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 88%);
+          mask-image:radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 88%);
+  transform:perspective(500px) rotateX(62deg) scale(1.6);
+  transform-origin:top center;
+  animation:gridDrift 9s linear infinite;
+  opacity:.55;
+}
+@keyframes gridDrift{ from{ background-position:0 0, 0 0; } to{ background-position:0 42px, 42px 0; } }
+#fxRain{ position:fixed; inset:0; z-index:-2; pointer-events:none; width:100%; height:100%; opacity:.5; }
+.fx-scan{
+  position:fixed; inset:0; z-index:2; pointer-events:none;
+  background:repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0px, rgba(255,255,255,.025) 1px, transparent 1px, transparent 3px);
+  mix-blend-mode:overlay; opacity:.35;
+}
+.fx-vignette{
+  position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:radial-gradient(ellipse 90% 70% at 50% 8%, transparent 0%, rgba(5,11,20,.35) 60%, var(--bg) 100%);
+}
+
+/* =========================================================
+   AUTH PAGES: fullscreen looping VIDEO backdrop
+   Only on sign-in / sign-up (body.auth-gate). The poster frame is
+   painted first, then the video fades in over it once it is playing.
+   If the video file can't load, JS adds body.no-bg-video and the
+   original grid + rain backdrop comes straight back.
+========================================================= */
+.fx-video-wrap{
+  position:fixed; inset:0; z-index:-4; pointer-events:none; overflow:hidden;
+  display:none;
+  background:var(--bg) url("assets/login-bg-poster.jpg") center / cover no-repeat;
+}
+body.auth-gate .fx-video-wrap{ display:block; }
+body.auth-gate.no-bg-video .fx-video-wrap{ display:none; }
+
+.fx-video{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; object-position:center;
+  filter:saturate(1.15) contrast(1.05);
+  opacity:0; transition:opacity 1s ease;
+}
+.fx-video.ready{ opacity:1; }
+
+/* dark + cyan tint so text and the card stay readable on top of the footage */
+.fx-video-wrap::after{
+  content:""; position:absolute; inset:0;
+  background:
+    linear-gradient(90deg, rgba(5,11,20,.80) 0%, rgba(5,11,20,.40) 45%, rgba(5,11,20,.56) 100%),
+    linear-gradient(180deg, rgba(34,211,238,.10) 0%, rgba(5,11,20,.40) 100%);
+}
+
+/* the video is the hero on auth pages: retire the grid + rain there,
+   and use a gentler vignette so the bottom of the footage isn't swallowed */
+body.auth-gate:not(.no-bg-video) .fx-grid,
+body.auth-gate:not(.no-bg-video) #fxRain{ display:none; }
+body.auth-gate:not(.no-bg-video) .fx-vignette{
+  background:radial-gradient(ellipse 100% 90% at 50% 45%, transparent 35%, rgba(5,11,20,.75) 100%);
+}
+
+/* frosted-glass sign-in card + readable hero copy over moving footage */
+body.auth-gate:not(.no-bg-video) .login-card{
+  background:rgba(11,21,36,.74);
+  -webkit-backdrop-filter:blur(14px) saturate(1.2);
+          backdrop-filter:blur(14px) saturate(1.2);
+}
+body.auth-gate:not(.no-bg-video) .login-hero .htag,
+body.auth-gate:not(.no-bg-video) .login-hero .hsub{ text-shadow:0 1px 14px rgba(0,0,0,.85); }
+body.auth-gate:not(.no-bg-video) .login-hero .hsub{ color:#a9c6de; }
+
+/* =========================================================
+   GLOW: cards, panels, buttons, inputs
+========================================================= */
+.card, .ops-card, .issue-card, .status-map-card, .area-card, .table-wrap, .zone-chip, .radio-item,
+.login-card, .track-search input, .file-drop{
+  box-shadow:var(--glow-cyan);
+  border-color:var(--border) !important;
+}
+.ops-card:hover, .card:hover{ box-shadow:var(--glow-cyan-strong); transition:box-shadow .25s ease; }
+.btn-primary, .demo-btn, .header-cta{
+  box-shadow:0 0 14px rgba(34,211,238,.45), 0 0 2px rgba(34,211,238,.9);
+  text-shadow:0 0 8px rgba(0,0,0,.25);
+  transition:box-shadow .2s ease, transform .15s ease;
+}
+.btn-primary:hover, .demo-btn:hover, .header-cta:hover{ box-shadow:0 0 26px rgba(34,211,238,.7), 0 0 4px rgba(34,211,238,1); transform:translateY(-1px); }
+.btn-primary:active, .demo-btn:active, .header-cta:active{ transform:translateY(0); }
+.ops-card .big, .card .big, h1, .lvl{ text-shadow:0 0 18px rgba(34,211,238,.35); }
+.status-dot .pulse, #sysPulse{ box-shadow:0 0 10px 2px rgba(74,222,128,.7); }
+
+/* Tech headings */
+.brand-name, .login-brand span, h1{ font-family:'Orbitron', 'Public Sans', sans-serif; letter-spacing:.02em; }
+.ops-nav-item, .pub-nav button, .ops-card h4{ letter-spacing:.03em; }
+.ops-nav-item.active{ box-shadow:inset 3px 0 0 var(--brand), var(--glow-cyan); background:var(--brand-soft); }
+
+/* =========================================================
+   3D ROTATING CUBE (brand mark)
+========================================================= */
+.cube3d-wrap{ perspective:600px; }
+.cube3d{
+  position:relative; width:100%; height:100%;
+  transform-style:preserve-3d;
+  animation:cubeSpin 9s linear infinite;
+}
+@keyframes cubeSpin{
+  from{ transform:rotateX(0deg) rotateY(0deg); }
+  to{ transform:rotateX(360deg) rotateY(360deg); }
+}
+.cube3d .face{
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  border:1px solid rgba(34,211,238,.65);
+  background:rgba(34,211,238,.07);
+  box-shadow:inset 0 0 14px rgba(34,211,238,.25), 0 0 10px rgba(34,211,238,.25);
+  font-size:.5em;
+}
+.cube3d .face svg{ width:42%; height:42%; stroke:#8ff2ff; filter:drop-shadow(0 0 4px rgba(143,242,255,.8)); }
+.cube3d .f-front{ transform:translateZ(var(--cs)); }
+.cube3d .f-back{ transform:rotateY(180deg) translateZ(var(--cs)); }
+.cube3d .f-right{ transform:rotateY(90deg) translateZ(var(--cs)); }
+.cube3d .f-left{ transform:rotateY(-90deg) translateZ(var(--cs)); }
+.cube3d .f-top{ transform:rotateX(90deg) translateZ(var(--cs)); }
+.cube3d .f-bottom{ transform:rotateX(-90deg) translateZ(var(--cs)); }
+
+.brand-mark.cube3d-wrap{ width:30px; height:30px; background:none; }
+.brand-mark.cube3d-wrap .cube3d{ --cs:15px; }
+.login-brand .brand-mark.cube3d-wrap{ width:26px; height:26px; }
+.login-brand .brand-mark.cube3d-wrap .cube3d{ --cs:13px; }
+
+/* 3D water droplet (WebGL shader) - replaces the big hero cube */
+.hero-drop-wrap{
+  position:relative; width:250px; height:300px; margin:0 auto -4px;
+  animation:floatY 4s ease-in-out infinite;
+  filter:drop-shadow(0 0 22px rgba(34,211,238,.35));
+}
+.hero-drop{ display:block; width:100%; height:100%; }
+.drop-fallback{ display:none; width:100%; height:100%; }
+.hero-drop-wrap.no-webgl .hero-drop{ display:none; }
+.hero-drop-wrap.no-webgl .drop-fallback{ display:block; }
+.hero-cube-glow{
+  width:200px; height:6px; margin:14px auto 0; border-radius:50%;
+  background:radial-gradient(ellipse, rgba(34,211,238,.55), transparent 70%);
+  filter:blur(2px);
+  animation:glowPulse 4s ease-in-out infinite;   /* breathes in time with the droplet's float */
+}
+@keyframes glowPulse{ 0%,100%{ transform:scaleX(1); opacity:1; } 50%{ transform:scaleX(.78); opacity:.6; } }
+
+/* =========================================================
+   LOGIN / SIGNUP: split hero layout
+========================================================= */
+.login-wrap{ position:relative; z-index:1; }
+.login-hero{
+  display:none;
+  flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding:0 30px;
+}
+.login-hero .htag{ font-family:'Orbitron',sans-serif; font-size:12px; letter-spacing:.25em; color:var(--brand); text-shadow:0 0 10px rgba(34,211,238,.6); margin-bottom:8px; }
+.login-hero .hsub{ font-size:12.5px; color:var(--text-dim); max-width:280px; margin-top:10px; line-height:1.6; }
+@media (min-width:920px){
+  .login-wrap{ display:flex; align-items:center; justify-content:center; gap:60px; max-width:1000px; margin:0 auto; }
+  .login-hero{ display:flex; flex:1; }
+  .login-card{ flex-shrink:0; }
+}
+
+/* =========================================================
+   PAGE / VIEW TRANSITIONS (3D animated)
+========================================================= */
+@keyframes pageIn{
+  from{ opacity:0; transform:perspective(900px) rotateX(6deg) translateY(14px) scale(.985); }
+  to{ opacity:1; transform:perspective(900px) rotateX(0deg) translateY(0) scale(1); }
+}
+.page.active{ animation:pageIn .5s cubic-bezier(.2,.7,.3,1) both; }
+.ops-view.active{ animation:pageIn .45s cubic-bezier(.2,.7,.3,1) both; }
+
+@keyframes floatY{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-6px); } }
+
+</style>
+</head>
+<body class="auth-gate">
+
+<!-- Sign-in / sign-up video backdrop (shown only while body.auth-gate) -->
+<div class="fx-video-wrap" aria-hidden="true">
+  <video id="fxVideo" class="fx-video" src="assets/login-bg.mp4"
+         muted loop playsinline preload="auto" disablepictureinpicture tabindex="-1"></video>
+</div>
+
+<!-- Ambient animated backdrop: perspective grid + falling rain + scanlines -->
+<div class="fx-grid" aria-hidden="true"></div>
+<canvas id="fxRain" aria-hidden="true"></canvas>
+<div class="fx-scan" aria-hidden="true"></div>
+<div class="fx-vignette" aria-hidden="true"></div>
+
+<!-- ================= HEADER ================= -->
+<header class="site-header">
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark cube3d-wrap"><div class="cube3d"><div class="face f-front"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2s7 8.5 7 13.5A7 7 0 015 15.5C5 10.5 12 2 12 2z"/></svg></div>
+      <div class="face f-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 18a4 4 0 000-8 5 5 0 00-9.6-1.5A4.5 4.5 0 007 18h10z"/><path d="M8 21l1-2M12 21l1-2M16 21l1-2"/></svg></div>
+      <div class="face f-right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 18a1.5 1.5 0 001.3 2.2h16a1.5 1.5 0 001.3-2.2L13.7 3.9a1.5 1.5 0 00-2.6 0z"/></svg></div>
+      <div class="face f-left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20a8 8 0 100-16 8 8 0 000 16z"/><path d="M12 12l3-2"/></svg></div>
+      <div class="face f-top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0114 0M8.5 16a5 5 0 017 0M12 20h.01"/></svg></div>
+      <div class="face f-bottom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></div></div></div>
+      <span class="brand-name" data-i18n="brand_name">FlowNet</span>
+    </div>
+    <nav class="pub-nav" id="pubNav">
+      <button data-page="home" class="active" data-i18n="nav_home">Home</button>
+      <button data-page="report" data-i18n="nav_report">Report an issue</button>
+      <button data-page="track" data-i18n="nav_track">Track a ticket</button>
+      <button data-page="status" data-i18n="nav_status">City status</button>
+    </nav>
+    <div class="acct">
+      <select id="langSelect" class="lang-select" aria-label="Select language">
+        <option value="en">English</option>
+        <option value="hi">हिंदी</option>
+        <option value="bn">বাংলা</option>
+        <option value="te">తెలుగు</option>
+        <option value="mr">मराठी</option>
+        <option value="ta">தமிழ்</option>
+        <option value="ur">اردو</option>
+        <option value="gu">ગુજરાતી</option>
+        <option value="kn">ಕನ್ನಡ</option>
+        <option value="ml">മലയാളം</option>
+        <option value="or">ଓଡ଼ିଆ</option>
+        <option value="pa">ਪੰਜਾਬੀ</option>
+        <option value="as">অসমীয়া</option>
+        <option value="mai">मैथिली</option>
+        <option value="sa">संस्कृतम्</option>
+        <option value="ks">کٲشُر</option>
+        <option value="ne">नेपाली</option>
+        <option value="kok">कोंकणी</option>
+        <option value="sd">سنڌي</option>
+        <option value="doi">डोगरी</option>
+        <option value="mni">মৈতৈলোন্</option>
+        <option value="sat">ᱥᱟᱱᱛᱟᱲᱤ</option>
+        <option value="brx">बड़ो</option>
+      </select>
+      <button class="header-cta" id="headerCta" data-i18n="nav_report">Report an issue</button>
+      <span class="acct-chip" id="acctChip"><span class="av" id="acctAvatar">?</span><span id="acctName">—</span><span class="rl" id="acctRole"></span></span>
+      <button class="acct-out" id="headerLogout" data-i18n="logout">Log out</button>
+    </div>
+  </div>
+</header>
+
+<!-- ================= HOME ================= -->
+<section class="page" id="page-home">
+  <div class="hero">
+    <div class="hero-inner">
+      <div>
+        <span class="status-chip"><span class="dot" id="homeStatusDot"></span><span id="homeStatusText" data-i18n="home_status">City flood risk: Low right now</span></span>
+        <h1 data-i18n="home_title">See flooding or a blocked drain? Report it in under a minute.</h1>
+        <p data-i18n="home_sub">FlowNet routes your report straight to the ward maintenance team and keeps you updated until it's fixed — no phone calls, no forms at the ward office.</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary" data-goto="report" data-i18n="nav_report">Report an issue</button>
+          <button class="btn btn-secondary" data-goto="status" data-i18n="home_check_risk">Check risk near me</button>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <svg id="homeMiniMap" viewBox="0 0 380 260" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap section">
+    <h2 class="section-title" data-i18n="home_how">How it works</h2>
+    <p class="section-sub" data-i18n="home_how_sub">Three steps, once you are signed in.</p>
+    <div class="steps-grid">
+      <div class="step-card"><div class="step-num">1</div><h3 data-i18n="home_step1_title">Tell us what and where</h3><p data-i18n="home_step1_sub">Pick the issue type and mark the location — a ward and a landmark is enough.</p></div>
+      <div class="step-card"><div class="step-num">2</div><h3 data-i18n="home_step2_title">We send it to the right team</h3><p data-i18n="home_step2_sub">Your report becomes a ticket and goes straight to the field crew for that ward.</p></div>
+      <div class="step-card"><div class="step-num">3</div><h3 data-i18n="home_step3_title">Track it to resolution</h3><p data-i18n="home_step3_sub">Use your ticket ID any time to see whether it's been acknowledged, assigned, or fixed.</p></div>
+    </div>
+  </div>
+
+  <div class="wrap section" style="padding-top:0;">
+    <h2 class="section-title" data-i18n="home_recent">Recently reported nearby</h2>
+    <p class="section-sub" data-i18n="home_recent_sub">A sample of issues reported by residents this week.</p>
+    <div class="report-grid" id="recentReports"></div>
+  </div>
+
+  <div class="footer-note">
+    <p data-i18n="home_footer">FlowNet is a monsoon-season flood monitoring and reporting service.</p>
+    <button id="toOpsLink" data-i18n="ops_link">Operations &amp; monitoring view (staff)</button>
+  </div>
+</section>
+
+<!-- ================= REPORT WIZARD ================= -->
+<section class="page" id="page-report">
+  <div class="narrow">
+    <div class="wizard-head">
+      <h1 data-i18n="report_title">Report an issue</h1>
+      <p data-i18n="report_sub">Takes about a minute. You can submit without giving your contact details.</p>
+    </div>
+
+    <div class="progress-labels" id="progressLabels"></div>
+    <div class="progress-track" id="progressTrack"></div>
+
+    <!-- Step 1 -->
+    <div class="wizard-card wizard-step active" id="w-step-1">
+      <h2 data-i18n="report_issue_title">What's the issue?</h2>
+      <p class="hint" data-i18n="report_issue_sub">Choose the option that best matches what you're seeing.</p>
+      <div class="issue-grid" id="issueGrid"></div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="wizard-card wizard-step" id="w-step-2">
+      <h2 data-i18n="report_location_title">Where is it?</h2>
+      <p class="hint" data-i18n="report_location_sub">Pick the area, then add a landmark so the field crew can find it fast.</p>
+      <div class="field">
+        <label data-i18n="area_label">Area / ward</label>
+        <div class="zone-picker" id="zonePicker"></div>
+      </div>
+      <div class="field">
+        <label for="landmarkInput" data-i18n="landmark_label">Landmark or address</label>
+        <input type="text" id="landmarkInput" data-i18n-placeholder="landmark_placeholder" placeholder="e.g. Opposite Velachery bus depot, near signal">
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="wizard-card wizard-step" id="w-step-3">
+      <h2 data-i18n="details_title">Add details</h2>
+      <p class="hint" data-i18n="details_sub">A short description and a photo help the crew prioritise correctly.</p>
+      <div class="field">
+        <label for="descInput" data-i18n="description_label">Description</label>
+        <textarea id="descInput" data-i18n-placeholder="description_placeholder" placeholder="What are you seeing? How deep is the water, how long has it been like this?"></textarea>
+      </div>
+      <div class="field">
+        <label data-i18n="urgency_label">How urgent is it?</label>
+        <div class="radio-list" id="severityList"></div>
+      </div>
+      <div class="field">
+        <label data-i18n="photo_label">Photo (optional)</label>
+        <label class="file-drop" id="fileDrop">
+          <span data-i18n="photo_attach">Tap to attach a photo</span>
+          <div class="fname" id="fileName"></div>
+        </label>
+        <input type="file" id="fileInput" accept="image/*" class="visually-hidden">
+      </div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="wizard-card wizard-step" id="w-step-4">
+      <h2 data-i18n="contact_title">Your contact details</h2>
+      <p class="hint" data-i18n="contact_sub">Optional — add these only if you'd like updates on this ticket.</p>
+      <div class="field">
+        <label for="nameInput" data-i18n="name_label">Name</label>
+        <input type="text" id="nameInput" data-i18n-placeholder="optional_placeholder" placeholder="Optional">
+      </div>
+      <div class="field">
+        <label for="contactInput" data-i18n="contact_label">Phone or email</label>
+        <input type="text" id="contactInput" data-i18n-placeholder="optional_placeholder" placeholder="Optional">
+        <div class="field-hint" data-i18n="contact_hint">Used only to notify you about this ticket.</div>
+      </div>
+
+      <h2 style="margin-top:22px;" data-i18n="review_title">Review</h2>
+      <div class="review-list" id="reviewList"></div>
+    </div>
+
+    <!-- Confirmation -->
+    <div class="wizard-card wizard-step" id="w-step-confirm">
+      <div class="confirm-card">
+        <div class="confirm-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg></div>
+        <h2 data-i18n="confirm_title">Ticket submitted</h2>
+        <p class="hint" style="margin-top:6px;" data-i18n="confirm_sub">The field crew has been notified. You can use this ID to check progress any time.</p>
+        <div class="ticket-id-box"><span class="mono" id="confirmTicketId">—</span><button class="copy-btn" id="copyTicketBtn" data-i18n="copy">Copy</button></div>
+        <div class="hero-actions" style="justify-content:center;">
+          <button class="btn btn-primary" id="goTrackBtn" data-i18n="track_this">Track this ticket</button>
+          <button class="btn btn-secondary" id="reportAnotherBtn" data-i18n="report_another">Report another issue</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="wizard-nav" id="wizardNav">
+      <button class="btn btn-secondary" id="wizBack" data-i18n="back">Back</button>
+      <button class="btn btn-primary" id="wizNext" data-i18n="next">Next</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TRACK ================= -->
+<section class="page" id="page-track">
+  <div class="narrow section">
+    <h1 style="font-size:24px;" data-i18n="track_title">Track a ticket</h1>
+    <p class="section-sub" style="margin-top:6px;" data-i18n="track_sub">Enter the ticket ID you received when you submitted your report.</p>
+    <div class="track-search">
+      <input type="text" id="trackInput" placeholder="e.g. FN-2026-0001">
+      <button class="btn btn-primary" id="trackBtn" data-i18n="track">Track</button>
+    </div>
+    <div class="try-note">Don't have one? Try <button id="tryTicket1">FN-2026-0001</button> or <button id="tryTicket2">FN-2026-0002</button>.</div>
+    <div id="trackResult"></div>
+  </div>
+</section>
+
+<!-- ================= CITY STATUS ================= -->
+<section class="page" id="page-status">
+  <div class="wrap section">
+    <h1 style="font-size:24px;" data-i18n="status_title">City status</h1>
+    <p class="section-sub" style="margin-top:6px;" data-i18n="status_sub">Live flood risk by area, updated from rainfall and drainage sensors.</p>
+    <div class="risk-banner safe" id="statusBanner">
+      <span class="ric">🌤️</span>
+      <div><div class="rt" id="statusBannerTitle">City-wide flood risk: Low</div><div class="rs" id="statusBannerSub">No flooding expected in the next few hours.</div></div>
+    </div>
+
+    <div class="status-map-card">
+      <svg id="statusMap" viewBox="0 0 700 320" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+
+    <h2 class="section-title" style="font-size:16px;" data-i18n="status_areas">Areas being monitored</h2>
+    <div class="area-list" id="areaList"></div>
+  </div>
+</section>
+
+<!-- ================= SIGN IN (gate) ================= -->
+<section class="page active" id="page-login">
+  <div class="login-wrap">
+    <div class="login-hero">
+      <div class="hero-drop-wrap" aria-hidden="true">
+        <canvas class="hero-drop"></canvas>
+        <svg class="drop-fallback" viewBox="0 0 200 240" fill="none">
+          <defs>
+            <linearGradient id="dropFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#67e8f9" stop-opacity=".55"/>
+              <stop offset="1" stop-color="#0ea5c6" stop-opacity=".25"/>
+            </linearGradient>
+          </defs>
+          <path d="M100 10C100 10 34 92 34 150a66 66 0 0 0 132 0C166 92 100 10 100 10Z" fill="url(#dropFill)" stroke="#67e8f9" stroke-width="2"/>
+          <path d="M70 140c0-20 10-38 22-54" stroke="#fff" stroke-opacity=".8" stroke-width="5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="hero-cube-glow"></div>
+      <div class="htag">FLOWNET // FLOOD ENGINE</div>
+      <div class="hsub">Rainfall, water level and drainage flow — fused in real time into a city-wide flood risk model. Sign in to report, track and monitor.</div>
+    </div>
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="brand-mark cube3d-wrap"><div class="cube3d"><div class="face f-front"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2s7 8.5 7 13.5A7 7 0 015 15.5C5 10.5 12 2 12 2z"/></svg></div>
+      <div class="face f-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 18a4 4 0 000-8 5 5 0 00-9.6-1.5A4.5 4.5 0 007 18h10z"/><path d="M8 21l1-2M12 21l1-2M16 21l1-2"/></svg></div>
+      <div class="face f-right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 18a1.5 1.5 0 001.3 2.2h16a1.5 1.5 0 001.3-2.2L13.7 3.9a1.5 1.5 0 00-2.6 0z"/></svg></div>
+      <div class="face f-left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20a8 8 0 100-16 8 8 0 000 16z"/><path d="M12 12l3-2"/></svg></div>
+      <div class="face f-top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0114 0M8.5 16a5 5 0 017 0M12 20h.01"/></svg></div>
+      <div class="face f-bottom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></div></div></div>
+        <span data-i18n="brand_name">FlowNet</span>
+      </div>
+      <div class="login-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
+      <h1 data-i18n="auth_signin">Sign in</h1>
+      <p class="section-sub" data-i18n="auth_desc">You need an account to use FlowNet. Sign in to report issues, track tickets and — if you are municipal staff — open the operations view.</p>
+
+      <div class="offline-note" id="authOfflineNote"></div>
+      <div class="login-ok" id="loginOk"></div>
+      <div class="login-error" id="loginError">Incorrect username or password.</div>
+
+      <form id="loginForm" novalidate>
+        <div class="field">
+          <label for="loginUser" data-i18n="auth_username">Username</label>
+          <input type="text" id="loginUser" autocomplete="username" data-i18n-placeholder="auth_username_placeholder" placeholder="e.g. admin">
+          <div class="field-err" id="loginUserErr"></div>
+        </div>
+        <div class="field" style="margin-bottom:6px;">
+          <label for="loginPass" data-i18n="auth_password">Password</label>
+          <input type="password" id="loginPass" autocomplete="current-password" placeholder="••••••••">
+          <div class="field-err" id="loginPassErr"></div>
+        </div>
+        <label style="display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text-dim); font-weight:600; margin-top:10px; cursor:pointer;">
+          <input type="checkbox" id="loginShowPass" style="width:auto;"> <span data-i18n="auth_show_password">Show password</span>
+        </label>
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top:14px;" id="loginSubmitBtn" data-i18n="auth_signin">Sign in</button>
+      </form>
+
+      <div class="auth-switch"><span data-i18n="auth_no_account">Don't have an account?</span> <button type="button" id="goSignupBtn" data-i18n="auth_create">Create one</button></div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ================= SIGN UP ================= -->
+<section class="page" id="page-signup">
+  <div class="login-wrap">
+    <div class="login-hero">
+      <div class="hero-drop-wrap" aria-hidden="true">
+        <canvas class="hero-drop"></canvas>
+        <svg class="drop-fallback" viewBox="0 0 200 240" fill="none">
+          <defs>
+            <linearGradient id="dropFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#67e8f9" stop-opacity=".55"/>
+              <stop offset="1" stop-color="#0ea5c6" stop-opacity=".25"/>
+            </linearGradient>
+          </defs>
+          <path d="M100 10C100 10 34 92 34 150a66 66 0 0 0 132 0C166 92 100 10 100 10Z" fill="url(#dropFill)" stroke="#67e8f9" stroke-width="2"/>
+          <path d="M70 140c0-20 10-38 22-54" stroke="#fff" stroke-opacity=".8" stroke-width="5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="hero-cube-glow"></div>
+      <div class="htag">JOIN FLOWNET</div>
+      <div class="hsub">Residents can report and track issues. Municipal staff and admin accounts also unlock the operations &amp; monitoring view.</div>
+    </div>
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="brand-mark cube3d-wrap"><div class="cube3d"><div class="face f-front"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2s7 8.5 7 13.5A7 7 0 015 15.5C5 10.5 12 2 12 2z"/></svg></div>
+      <div class="face f-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 18a4 4 0 000-8 5 5 0 00-9.6-1.5A4.5 4.5 0 007 18h10z"/><path d="M8 21l1-2M12 21l1-2M16 21l1-2"/></svg></div>
+      <div class="face f-right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 18a1.5 1.5 0 001.3 2.2h16a1.5 1.5 0 001.3-2.2L13.7 3.9a1.5 1.5 0 00-2.6 0z"/></svg></div>
+      <div class="face f-left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20a8 8 0 100-16 8 8 0 000 16z"/><path d="M12 12l3-2"/></svg></div>
+      <div class="face f-top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0114 0M8.5 16a5 5 0 017 0M12 20h.01"/></svg></div>
+      <div class="face f-bottom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></div></div></div>
+        <span data-i18n="brand_name">FlowNet</span>
+      </div>
+      <div class="login-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></div>
+      <h1>Create an account</h1>
+      <p class="section-sub">Residents can report and track issues. Municipal staff accounts also unlock the operations &amp; monitoring view.</p>
+
+      <div class="offline-note" id="signupOfflineNote"></div>
+      <div class="login-ok" id="signupOk"></div>
+      <div class="login-error" id="signupError"></div>
+
+      <form id="signupForm" novalidate>
+        <div class="field">
+          <label for="signupUser">Username</label>
+          <input type="text" id="signupUser" autocomplete="username" placeholder="3–20 letters, numbers or _">
+          <div class="field-err" id="signupUserErr"></div>
+        </div>
+
+        <div class="field">
+          <label for="signupPass">Password</label>
+          <input type="password" id="signupPass" autocomplete="new-password" placeholder="At least 6 characters">
+          <div class="pw-meter"><i id="pwMeterBar"></i></div>
+          <div class="field-hint" id="pwMeterText">Use 6+ characters, with a letter and a number.</div>
+          <div class="field-err" id="signupPassErr"></div>
+        </div>
+
+        <div class="field">
+          <label for="signupPass2">Confirm password</label>
+          <input type="password" id="signupPass2" autocomplete="new-password" placeholder="Re-type your password">
+          <div class="field-err" id="signupPass2Err"></div>
+        </div>
+
+        <label style="display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text-dim); font-weight:600; margin:-6px 0 16px; cursor:pointer;">
+          <input type="checkbox" id="signupShowPass" style="width:auto;"> Show passwords
+        </label>
+
+        <div class="field">
+          <label for="signupRole">Account type</label>
+          <select id="signupRole">
+            <option value="citizen">Resident / citizen</option>
+            <option value="staff">Municipal staff (field ops)</option>
+            <option value="admin">Municipal admin</option>
+          </select>
+          <div class="field-hint">Staff and admin accounts need the access code issued by the ward office.</div>
+        </div>
+
+        <div class="field" id="staffCodeField" style="display:none;">
+          <label for="signupCode">Staff access code</label>
+          <input type="text" id="signupCode" placeholder="e.g. FLOWNET-STAFF-2026">
+          <div class="field-err" id="signupCodeErr"></div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top:4px;" id="signupSubmitBtn">Create account</button>
+      </form>
+
+      <div class="auth-switch">Already have an account? <button type="button" id="goLoginBtn">Sign in</button></div>
+
+      <div class="login-hint">Sent to <code>POST /api/signup</code>, which validates the input, rejects duplicate usernames and inserts a row into the MySQL <code>users</code> table with <code>SHA2(password, 256)</code>. Demo staff access code: <code>FLOWNET-STAFF-2026</code>.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= OPS (staff) ================= -->
+<section class="page" id="page-ops">
+  <div class="wrap" style="padding-top:16px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+      <div>
+        <h1 style="font-size:20px;">Operations &amp; monitoring</h1>
+        <p class="section-sub" style="margin:4px 0 0;">Internal view for municipal staff — nowcasting, drainage map, inspection and the maintenance queue.</p>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <span class="staff-badge"><span class="dot"></span><span id="staffBadgeText">Signed in</span></span>
+        <button class="demo-btn" id="runDemoBtn">▶ Run demo scenario</button>
+        <button class="btn btn-ghost" id="logoutBtn" data-i18n="logout">Log out</button>
+        <button class="btn btn-ghost" id="backToPublic">← Back to public site</button>
+      </div>
+    </div>
+    <div class="sim-banner" id="simBanner">
+      <strong style="color:var(--amber); font-size:12px;">Demo running</strong>
+      <div id="simSteps" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+    </div>
+  </div>
+
+  <div class="ops-shell">
+    <div class="ops-side" id="opsNav">
+      <button class="ops-nav-item active" data-ops="monitor">Monitoring</button>
+      <button class="ops-nav-item" data-ops="nowcast">AI Nowcasting</button>
+      <button class="ops-nav-item" data-ops="map">Drainage map</button>
+      <button class="ops-nav-item" data-ops="inspect">AI inspection</button>
+      <button class="ops-nav-item" data-ops="maint">Maintenance queue</button>
+    </div>
+
+    <div class="ops-main">
+      <!-- Monitoring -->
+      <div class="ops-view active" id="ops-monitor">
+        <div class="ops-grid ops-top">
+          <div class="ops-card"><h4>Rainfall (last 1 hr)</h4><div class="big" id="o-rainfall">18 mm</div></div>
+          <div class="ops-card"><h4>Water level — Velachery</h4><div class="big" id="o-waterlevel">1.4 m</div></div>
+          <div class="ops-card"><h4>Predicted risk</h4><div class="big" id="o-risk">Low</div></div>
+          <div class="ops-card"><h4>ETA to flooding</h4><div class="big" id="o-eta" style="font-size:15px;">—</div></div>
+        </div>
+        <div class="ops-card" style="margin-top:14px;">
+          <h4 style="margin-bottom:10px;">Rainfall vs. water level — last 6 hours</h4>
+          <svg id="trendChart" viewBox="0 0 640 240" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+      </div>
+
+      <!-- AI Nowcasting (merged from flownet-ops-dashboard.html) -->
+      <div class="ops-view" id="ops-nowcast">
+        <p class="section-sub" style="margin:0 0 4px;">Rainfall, water level and drainage flow are fused into a short-horizon prediction of where flooding is likely and when.</p>
+        <div class="flow-strip" aria-hidden="true">
+          <div class="flow-node">Rainfall</div><div class="flow-arrow">→</div>
+          <div class="flow-node">Water level</div><div class="flow-arrow">→</div>
+          <div class="flow-node">Drainage flow</div><div class="flow-arrow">→</div>
+          <div class="flow-node" style="border-color:var(--teal);color:var(--teal);">Prediction model</div><div class="flow-arrow">→</div>
+          <div class="flow-node">Flood risk + zone + ETA</div>
+        </div>
+        <div class="now-grid">
+          <div class="ops-card">
+            <h4 style="font-size:12.5px; margin-bottom:0;">Current risk level</h4>
+            <div class="gauge-wrap">
+              <svg id="riskGauge" viewBox="0 0 220 130" width="220" height="130"></svg>
+              <div class="gauge-readout">
+                <div class="lvl" id="gaugeLevel">Low</div>
+                <div class="sub" id="gaugeSub">Model confidence 91%</div>
+              </div>
+            </div>
+            <div class="pred-list">
+              <div class="pred-row"><span class="k">Predicted affected zone</span><span class="v" id="predZone">—</span></div>
+              <div class="pred-row"><span class="k">Estimated time to flooding</span><span class="v" id="predEta">—</span></div>
+              <div class="pred-row"><span class="k">Model last updated</span><span class="v mono" id="predUpdated">—</span></div>
+            </div>
+          </div>
+          <div class="ops-card chart-card">
+            <h4 style="font-size:12.5px;">Rainfall vs. water level — last 6 hours</h4>
+            <svg id="trendChartNowcast" viewBox="0 0 640 240" xmlns="http://www.w3.org/2000/svg"></svg>
+            <div style="display:flex; gap:14px; margin-top:8px; font-size:11.5px; color:var(--text-dim);">
+              <span><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#3d8bd6;margin-right:4px;"></i>Rainfall (mm)</span>
+              <span><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--teal);margin-right:4px;"></i>Water level (m)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Map -->
+      <div class="ops-view" id="ops-map">
+        <div style="display:grid; grid-template-columns:1fr 280px; gap:14px;" id="opsMapGrid">
+          <div class="ops-card" style="padding:0; overflow:hidden;">
+            <svg id="gisMap" viewBox="0 0 760 440" xmlns="http://www.w3.org/2000/svg" style="width:100%; display:block;"></svg>
+          </div>
+          <div class="ops-card" id="nodeDetail"><p class="section-sub" style="margin:0;">Click a manhole, sensor or zone for its readings.</p></div>
+        </div>
+      </div>
+
+      <!-- Inspection -->
+      <div class="ops-view" id="ops-inspect">
+        <div style="display:grid; grid-template-columns:220px 1fr; gap:14px;" id="opsInspectGrid">
+          <div class="ops-card" id="locListCard">
+            <h4 style="margin-bottom:8px;">Locations</h4>
+            <div id="locList" style="display:flex; flex-direction:column; gap:5px;"></div>
+          </div>
+          <div>
+            <div class="ops-card" style="padding:0; overflow:hidden;">
+              <svg id="camView" viewBox="0 0 560 280" xmlns="http://www.w3.org/2000/svg" style="width:100%; display:block; background:#081019;"></svg>
+            </div>
+            <div class="ops-card" id="defectCard" style="display:none; margin-top:10px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                <strong id="defectTitle" style="font-size:14px;">—</strong>
+                <span class="tag" id="defectSeverity">—</span>
+              </div>
+              <div style="font-size:11.5px; color:var(--text-dim); margin-top:8px;">Confidence: <span id="confPct">—</span></div>
+              <button class="btn btn-primary" style="margin-top:10px;" id="createTicketBtn">Create maintenance ticket</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Maintenance -->
+      <div class="ops-view" id="ops-maint">
+        <div class="table-wrap">
+          <table class="tickets">
+            <thead><tr><th>Ticket</th><th>Problem</th><th>Location</th><th>Priority</th><th>Team</th><th>Status</th></tr></thead>
+            <tbody id="ticketBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+
+/* ---------------------------------------------------------------
+   LANGUAGE SWITCHER (simple, extend the dictionary as needed)
+----------------------------------------------------------------*/
+const i18n = {
+  en: {
+    nav_home: "Home", nav_report: "Report an issue", nav_track: "Track a ticket", nav_status: "City status",
+    home_status: "City flood risk: Low right now",
+    home_title: "See flooding or a blocked drain? Report it in under a minute.",
+    home_sub: "FlowNet routes your report straight to the ward maintenance team and keeps you updated until it's fixed — no phone calls, no forms at the ward office.",
+    home_check_risk: "Check risk near me"
+  },
+  hi: {
+    nav_home: "होम", nav_report: "समस्या दर्ज करें", nav_track: "टिकट ट्रैक करें", nav_status: "शहर की स्थिति",
+    home_status: "शहर में बाढ़ का जोखिम: अभी कम",
+    home_title: "बाढ़ या बंद नाली दिखी? एक मिनट में रिपोर्ट करें।",
+    home_sub: "आपकी रिपोर्ट सीधे वार्ड रखरखाव टीम को भेजी जाती है और ठीक होने तक आपको अपडेट मिलते रहते हैं — कोई फोन कॉल या फॉर्म नहीं।",
+    home_check_risk: "मेरे आस-पास का जोखिम देखें"
+  },
+  bn: {
+    nav_home: "হোম", nav_report: "সমস্যা রিপোর্ট করুন", nav_track: "টিকিট ট্র্যাক করুন", nav_status: "শহরের অবস্থা",
+    home_status: "শহরে বন্যার ঝুঁকি: এখন কম",
+    home_title: "বন্যা বা বন্ধ ড্রেন দেখেছেন? এক মিনিটে রিপোর্ট করুন।",
+    home_sub: "আপনার রিপোর্ট সরাসরি ওয়ার্ড রক্ষণাবেক্ষণ দলের কাছে পাঠানো হয় এবং সমাধান না হওয়া পর্যন্ত আপনাকে আপডেট দেওয়া হয় — কোনো ফোন কল বা ফর্মের প্রয়োজন নেই।",
+    home_check_risk: "আমার কাছাকাছি ঝুঁকি দেখুন"
+  },
+  te: {
+    nav_home: "హోమ్", nav_report: "సమస్యను నివేదించండి", nav_track: "టికెట్‌ను ట్రాక్ చేయండి", nav_status: "నగర స్థితి",
+    home_status: "నగర వరద ప్రమాదం: ప్రస్తుతం తక్కువ",
+    home_title: "వరద లేదా మూసుకుపోయిన డ్రెయిన్ కనిపించిందా? ఒక నిమిషంలో రిపోర్ట్ చేయండి.",
+    home_sub: "మీ రిపోర్ట్ నేరుగా వార్డు నిర్వహణ బృందానికి వెళ్తుంది మరియు అది పరిష్కారమయ్యే వరకు మీకు అప్‌డేట్‌లు అందుతాయి — ఫోన్ కాల్స్ లేదా ఫారమ్‌లు అవసరం లేదు.",
+    home_check_risk: "నా దగ్గర ప్రమాదాన్ని చూడండి"
+  },
+  mr: {
+    nav_home: "होम", nav_report: "समस्या नोंदवा", nav_track: "तिकीट ट्रॅक करा", nav_status: "शहराची स्थिती",
+    home_status: "शहरातील पूर धोका: सध्या कमी",
+    home_title: "पूर किंवा तुंबलेली गटार दिसली? एका मिनिटात तक्रार नोंदवा.",
+    home_sub: "तुमची तक्रार थेट वॉर्ड देखभाल टीमकडे जाते आणि ती सोडवली जाईपर्यंत तुम्हाला अपडेट्स मिळत राहतात — फोन कॉल किंवा फॉर्म्सची गरज नाही.",
+    home_check_risk: "माझ्या जवळचा धोका पहा"
+  },
+  ta: {
+    nav_home: "முகப்பு", nav_report: "சிக்கலைப் புகாரளிக்க", nav_track: "டிக்கெட்டைக் கண்காணிக்க", nav_status: "நகர நிலை",
+    home_status: "நகர வெள்ள ஆபத்து: இப்போது குறைவு",
+    home_title: "வெள்ளம் அல்லது அடைபட்ட வடிகால் பார்த்தீர்களா? ஒரு நிமிடத்தில் புகாரளியுங்கள்.",
+    home_sub: "உங்கள் புகார் நேரடியாக வார்டு பராமரிப்புக் குழுவிற்கு அனுப்பப்பட்டு, சரி செய்யப்படும் வரை உங்களுக்குத் தகவல் தரப்படும் — போன் அழைப்புகள் அல்லது படிவங்கள் தேவையில்லை.",
+    home_check_risk: "என் அருகில் உள்ள ஆபத்தைப் பார்க்க"
+  },
+  ur: {
+    nav_home: "ہوم", nav_report: "مسئلہ رپورٹ کریں", nav_track: "ٹکٹ ٹریک کریں", nav_status: "شہر کی صورتحال",
+    home_status: "شہر میں سیلاب کا خطرہ: فی الحال کم",
+    home_title: "سیلاب یا بند نالی نظر آئی؟ ایک منٹ میں رپورٹ کریں۔",
+    home_sub: "آپ کی رپورٹ براہ راست وارڈ کی دیکھ بھال کرنے والی ٹیم کو بھیجی جاتی ہے اور حل ہونے تک آپ کو اپڈیٹس ملتی رہتی ہیں — کوئی فون کال یا فارم درکار نہیں۔",
+    home_check_risk: "میرے قریب خطرہ دیکھیں"
+  },
+  gu: {
+    nav_home: "હોમ", nav_report: "સમસ્યાની જાણ કરો", nav_track: "ટિકિટ ટ્રેક કરો", nav_status: "શહેરની સ્થિતિ",
+    home_status: "શહેરમાં પૂરનું જોખમ: અત્યારે ઓછું",
+    home_title: "પૂર અથવા બંધ ગટર દેખાઈ? એક મિનિટમાં જાણ કરો.",
+    home_sub: "તમારો રિપોર્ટ સીધો વોર્ડ મેન્ટેનન્સ ટીમને મોકલવામાં આવે છે અને તે ઉકેલાય ત્યાં સુધી તમને અપડેટ્સ મળતા રહે છે — કોઈ ફોન કોલ કે ફોર્મની જરૂર નથી.",
+    home_check_risk: "મારી નજીકનું જોખમ જુઓ"
+  },
+  kn: {
+    nav_home: "ಮುಖಪುಟ", nav_report: "ಸಮಸ್ಯೆ ವರದಿ ಮಾಡಿ", nav_track: "ಟಿಕೆಟ್ ಟ್ರ್ಯಾಕ್ ಮಾಡಿ", nav_status: "ನಗರದ ಸ್ಥಿತಿ",
+    home_status: "ನಗರ ಪ್ರವಾಹ ಅಪಾಯ: ಸದ್ಯಕ್ಕೆ ಕಡಿಮೆ",
+    home_title: "ಪ್ರವಾಹ ಅಥವಾ ಬ್ಲಾಕ್ ಆದ ಚರಂಡಿ ಕಂಡಿತೇ? ಒಂದು ನಿಮಿಷದಲ್ಲಿ ವರದಿ ಮಾಡಿ.",
+    home_sub: "ನಿಮ್ಮ ವರದಿ ನೇರವಾಗಿ ವಾರ್ಡ್ ನಿರ್ವಹಣಾ ತಂಡಕ್ಕೆ ಹೋಗುತ್ತದೆ ಮತ್ತು ಸರಿಪಡಿಸುವವರೆಗೆ ನಿಮಗೆ ಅಪ್‌ಡೇಟ್‌ಗಳು ಸಿಗುತ್ತವೆ — ಫೋನ್ ಕರೆ ಅಥವಾ ಫಾರ್ಮ್‌ಗಳ ಅಗತ್ಯವಿಲ್ಲ.",
+    home_check_risk: "ನನ್ನ ಹತ್ತಿರದ ಅಪಾಯ ನೋಡಿ"
+  },
+  ml: {
+    nav_home: "ഹോം", nav_report: "പ്രശ്നം റിപ്പോർട്ട് ചെയ്യുക", nav_track: "ടിക്കറ്റ് ട്രാക്ക് ചെയ്യുക", nav_status: "നഗര സ്ഥിതി",
+    home_status: "നഗര വെള്ളപ്പൊക്ക അപകടസാധ്യത: ഇപ്പോൾ കുറവാണ്",
+    home_title: "വെള്ളപ്പൊക്കമോ അടഞ്ഞ ഓടയോ കണ്ടോ? ഒരു മിനിറ്റിനുള്ളിൽ റിപ്പോർട്ട് ചെയ്യുക.",
+    home_sub: "നിങ്ങളുടെ റിപ്പോർട്ട് നേരിട്ട് വാർഡ് മെയിന്റനൻസ് ടീമിലേക്ക് പോകുന്നു, പരിഹരിക്കുന്നത് വരെ നിങ്ങൾക്ക് അപ്ഡേറ്റുകൾ ലഭിക്കും — ഫോൺ കോളുകളോ ഫോമുകളോ വേണ്ട.",
+    home_check_risk: "എന്റെ അടുത്തുള്ള അപകടസാധ്യത കാണുക"
+  },
+  or: {
+    nav_home: "ହୋମ", nav_report: "ସମସ୍ୟା ରିପୋର୍ଟ କରନ୍ତୁ", nav_track: "ଟିକେଟ୍ ଟ୍ରାକ୍ କରନ୍ତୁ", nav_status: "ସହରର ସ୍ଥିତି",
+    home_status: "ସହର ବନ୍ୟା ବିପଦ: ବର୍ତ୍ତମାନ କମ୍",
+    home_title: "ବନ୍ୟା କିମ୍ବା ବନ୍ଦ ନାଳ ଦେଖିଲେ? ଏକ ମିନିଟରେ ରିପୋର୍ଟ କରନ୍ତୁ।",
+    home_sub: "ଆପଣଙ୍କ ରିପୋର୍ଟ ସିଧାସଳଖ ୱାର୍ଡ ମେଣ୍ଟେନାନ୍ସ ଟିମକୁ ଯାଏ ଏବଂ ଠିକ୍ ନହେବା ପର୍ଯ୍ୟନ୍ତ ଆପଣଙ୍କୁ ଅପଡେଟ୍ ମିଳେ — କୌଣସି ଫୋନ୍ କଲ୍ କିମ୍ବା ଫର୍ମ ଦରକାର ନାହିଁ।",
+    home_check_risk: "ମୋ ପାଖର ବିପଦ ଦେଖନ୍ତୁ"
+  },
+  pa: {
+    nav_home: "ਹੋਮ", nav_report: "ਸਮੱਸਿਆ ਦੀ ਰਿਪੋਰਟ ਕਰੋ", nav_track: "ਟਿਕਟ ਟ੍ਰੈਕ ਕਰੋ", nav_status: "ਸ਼ਹਿਰ ਦੀ ਸਥਿਤੀ",
+    home_status: "ਸ਼ਹਿਰ ਵਿੱਚ ਹੜ੍ਹ ਦਾ ਖਤਰਾ: ਹੁਣ ਘੱਟ",
+    home_title: "ਹੜ੍ਹ ਜਾਂ ਬੰਦ ਨਾਲੀ ਦੇਖੀ? ਇੱਕ ਮਿੰਟ ਵਿੱਚ ਰਿਪੋਰਟ ਕਰੋ।",
+    home_sub: "ਤੁਹਾਡੀ ਰਿਪੋਰਟ ਸਿੱਧੀ ਵਾਰਡ ਰੱਖ-ਰਖਾਅ ਟੀਮ ਨੂੰ ਜਾਂਦੀ ਹੈ ਅਤੇ ਠੀਕ ਹੋਣ ਤੱਕ ਤੁਹਾਨੂੰ ਅੱਪਡੇਟ ਮਿਲਦੇ ਰਹਿੰਦੇ ਹਨ — ਕੋਈ ਫੋਨ ਕਾਲ ਜਾਂ ਫਾਰਮ ਦੀ ਲੋੜ ਨਹੀਂ।",
+    home_check_risk: "ਮੇਰੇ ਨੇੜੇ ਦਾ ਖਤਰਾ ਦੇਖੋ"
+  },
+  as: {
+    nav_home: "গৃহ", nav_report: "সমস্যা প্ৰতিবেদন কৰক", nav_track: "টিকট ট্ৰেক কৰক", nav_status: "চহৰৰ অৱস্থা",
+    home_status: "চহৰৰ বান বিপদ: এতিয়া কম",
+    home_title: "বান পানী বা বন্ধ নলা দেখিছে নেকি? এক মিনিটৰ ভিতৰত প্ৰতিবেদন কৰক।",
+    home_sub: "আপোনাৰ প্ৰতিবেদন পোনপটীয়াকৈ ৱাৰ্ড ৰক্ষণাবেক্ষণ দলৰ ওচৰলৈ যায় আৰু সমাধান নোহোৱালৈকে আপোনাক তথ্য দিয়া হয় — ফোন কল বা ফৰ্মৰ প্ৰয়োজন নাই।",
+    home_check_risk: "মোৰ ওচৰৰ বিপদ চাওক"
+  },
+  mai: {
+    nav_home: "होम", nav_report: "समस्या रिपोर्ट करू", nav_track: "टिकट ट्रैक करू", nav_status: "शहरक स्थिति",
+    home_status: "शहरमे बाढ़िक खतरा: अखन कम",
+    home_title: "बाढ़ि आकि बन्द नाली देखलहुँ? एक मिनटमे रिपोर्ट करू।",
+    home_sub: "अहाँक रिपोर्ट सीधा वार्ड मेंटेनेंस टीमके जाइत अछि आ ठीक नहि होइत धरि अपडेट भेटैत रहत — फोन कॉल वा फॉर्मक आवश्यकता नहि।",
+    home_check_risk: "हमर लगमे खतरा देखू"
+  },
+  sa: {
+    nav_home: "गृहम्", nav_report: "समस्यां निवेदयतु", nav_track: "टिकटं अनुसरतु", nav_status: "नगरस्य स्थितिः",
+    home_status: "नगरे जलप्लावनभयम्: सम्प्रति अल्पम्",
+    home_title: "जलप्लावनं रुद्धां नालिकां वा दृष्टवन्तः? एकस्मिन् निमेषे निवेदयतु।",
+    home_sub: "भवतः निवेदनं सीधा वार्ड-रक्षणदलं प्रति गच्छति, समाधानपर्यन्तं सूचनाः प्राप्स्यन्ति — दूरभाषकलम् पत्रकं वा नापेक्षितम्।",
+    home_check_risk: "समीपस्थं भयं पश्यतु"
+  },
+  ks: {
+    nav_home: "ہوم", nav_report: "مسئلہ رپورٹ کریو", nav_track: "ٹکٹ ٹریک کریو", nav_status: "شہرچ حالت",
+    home_status: "شہرچ سیلاب خطرہ: وقتہ کم",
+    home_title: "سیلاب یا بند نالہ وُچھو؟ اکھ منٹس منز رپورٹ کریو۔",
+    home_sub: "توہند رپورٹ سیدھا وارڈ مینٹیننس ٹیمس پیٹھ ووچھ، تہ حل ژارنہ تام اپڈیٹ ملان — فون کال یا فارم ضرورت نہیں۔",
+    home_check_risk: "میہ نزدیک خطرہ وُچھو"
+  },
+  ne: {
+    nav_home: "गृहपृष्ठ", nav_report: "समस्या रिपोर्ट गर्नुहोस्", nav_track: "टिकट ट्र्याक गर्नुहोस्", nav_status: "शहरको स्थिति",
+    home_status: "सहरको बाढी जोखिम: अहिले कम",
+    home_title: "बाढी वा अवरुद्ध नाला देख्नुभयो? एक मिनेटमा रिपोर्ट गर्नुहोस्।",
+    home_sub: "तपाईंको रिपोर्ट सीधा वडा मर्मत टोलीमा जान्छ र समाधान नभएसम्म तपाईंलाई अपडेट दिइन्छ — फोन कल वा फारमको आवश्यकता छैन।",
+    home_check_risk: "मेरो नजिकको जोखिम हेर्नुहोस्"
+  },
+  kok: {
+    nav_home: "होम", nav_report: "समस्या कळयात", nav_track: "तिकीट ट्रॅक करात", nav_status: "शारांतली स्थिती",
+    home_status: "शारांत पुराचो धोको: सद्या उणो",
+    home_title: "पूर वा बंद न्हंय दिसलो? एका मिनटांत कळयात.",
+    home_sub: "तुमची रिपोर्ट सरळ वॉर्ड मेंटेनन्स टीमाक वता आनी सुटे मेरेन तुमकां अपडेट मेळटले — फोन कॉल वा फॉर्माची गरज ना.",
+    home_check_risk: "म्हज्या लागसार धोको पळयात"
+  },
+  sd: {
+    nav_home: "گھر", nav_report: "تڪليف جي رپورٽ ڪريو", nav_track: "ٽڪيٽ ٽريڪ ڪريو", nav_status: "شهر جي حالت",
+    home_status: "شهر ۾ ٻوڏ جو خطرو: هاڻي گهٽ",
+    home_title: "ٻوڏ يا بند نالي ڏٺي؟ هڪ منٽ ۾ رپورٽ ڪريو.",
+    home_sub: "توهانجي رپورٽ سڌو وارڊ سنڀال ٽيم ڏانهن ويندي ۽ حل ٿيڻ تائين توهان کي اپڊيٽ ملندا رهندا — ڪو فون ڪال يا فارم جي ضرورت ناهي.",
+    home_check_risk: "منهنجي ويجهو خطرو ڏسو"
+  },
+  doi: {
+    nav_home: "घर", nav_report: "समस्या दी रिपोर्ट करो", nav_track: "टिकट ट्रैक करो", nav_status: "शैहरे दी हालत",
+    home_status: "शैहरे च़ हड़ दा खतरा: हुण घट्ट",
+    home_title: "हड़ जां बंद नाली दिखी? इक मिनटे च़ रिपोर्ट करो।",
+    home_sub: "तुंदी रिपोर्ट सीधी वार्ड रखरखाव टीमें गी जंदी ऐ ते ठीक होने तगर तुंगी अपडेट मिलदे रौंह्दे न — कोई फोन कॉल जां फार्म दी लोड़ नेईं।",
+    home_check_risk: "मेरे नेड़े दा खतरा दिक्खो"
+  },
+  mni: {
+    nav_home: "হোম", nav_report: "অতোপ্পা তারেৎ পীবা", nav_track: "টিকেট ত্রাক তৌবা", nav_status: "সহরগী মতাং",
+    home_status: "সহরদা ইসিং চুবগী থীনা: হৌজিক পীক্না",
+    home_title: "ইসিং চুবা নত্রগা নালা ফোরবা উবা? মিনিট অমদা রিপোর্ট তৌবীয়ু।",
+    home_sub: "নহাক্কী রিপোর্ট অসি ৱার্ড মেইনটেনেন্স তীমদা চৎলি অমসুং ফজনা লৈরিবা ফাওবা নহাক্কী অপডেট ফংগনি — ফোন কল নত্রগা ফর্ম মতৌ তাঙই।",
+    home_check_risk: "ঐগী নকনা লৈবা থীনা উয়ু"
+  },
+  sat: {
+    nav_home: "ओड़ाक्", nav_report: "गोजाग् रिपोर्ट मे", nav_track: "टिकेट ट्रेक मे", nav_status: "नगर रेयाक् हालत",
+    home_status: "नगर रेयाक् दाड़ी बाहा: नितोक् हूड़िञ्",
+    home_title: "दाड़ी बा बंद नाली नेल लेदा? मिनिट् मित्तेनताय् रिपोर्ट मे।",
+    home_sub: "आमाक् रिपोर्ट सिदा वार्ड मेंटेनेंस टीम रे सेन आर बेश होचोक् जाहा ओड़ेआ आमाक् अपडेट नामोआ — फोन कल आर फार्म बांचाब।",
+    home_check_risk: "इञाक् सेरमा रेयाक् बाहा नेल मे"
+  },
+  brx: {
+    nav_home: "होम", nav_report: "फोरमानाव रिपोर्ट खालाम", nav_track: "टिकेट ट्रेक खालाम", nav_status: "सहरनि दशा",
+    home_status: "सहरा बान्दि खतरा: दानि उनाव",
+    home_title: "बान्दि एबा बन्द नाली नुनानो? मिनिटावनि सिमायाव रिपोर्ट खालाम।",
+    home_sub: "नोंथांनि रिपोर्ट थाद वार्ड मेंटेनेंस टिमाव जाबाय आरो शुद्धि जानाय सम्मान नोंथांनो अपडेट मोनो — फोन कल एबा फर्म गोनां नङा।",
+    home_check_risk: "आंनि हाबहानाव खतरा नु"
+  }
+};
+
+const workflowTranslations = {
+  en: {
+    home_how:'How it works', home_how_sub:'Three steps, once you are signed in.',
+    home_step1_title:'Tell us what and where', home_step1_sub:'Pick the issue type and mark the location — a ward and a landmark is enough.',
+    home_step2_title:'We send it to the right team', home_step2_sub:'Your report becomes a ticket and goes straight to the field crew for that ward.',
+    home_step3_title:'Track it to resolution', home_step3_sub:"Use your ticket ID any time to see whether it's been acknowledged, assigned, or fixed.",
+    home_recent:'Recently reported nearby', home_recent_sub:'A sample of issues reported by residents this week.', recent_open:'Open', recent_resolved:'Resolved',
+    recent_1:'Ankle-deep water near bus depot', recent_2:'Drain cleared, back to normal', recent_3:'Slow drainage after last night\u2019s rain', recent_4:'No issues reported this week', recent_5:'Manhole cover replaced',
+    home_footer:'FlowNet is a monsoon-season flood monitoring and reporting service.', ops_link:'Operations & monitoring view (staff)',
+    report_title:'Report an issue', report_sub:'Takes about a minute. You can submit without giving your contact details.',
+    report_issue_title:"What's the issue?", report_issue_sub:"Choose the option that best matches what you're seeing.",
+    report_location_title:'Where is it?', report_location_sub:'Pick the area, then add a landmark so the field crew can find it fast.',
+    area_label:'Area / ward', landmark_label:'Landmark or address', landmark_placeholder:'e.g. Opposite Velachery bus depot, near signal',
+    details_title:'Add details', details_sub:'A short description and a photo help the crew prioritise correctly.',
+    description_label:'Description', description_placeholder:'What are you seeing? How deep is the water, how long has it been like this?',
+    urgency_label:'How urgent is it?', photo_label:'Photo (optional)', photo_attach:'Tap to attach a photo',
+    contact_title:'Your contact details', contact_sub:"Optional — add these only if you'd like updates on this ticket.",
+    name_label:'Name', contact_label:'Phone or email', optional_placeholder:'Optional', contact_hint:'Used only to notify you about this ticket.',
+    review_title:'Review', confirm_title:'Ticket submitted', confirm_sub:'The field crew has been notified. You can use this ID to check progress any time.',
+    copy:'Copy', track_this:'Track this ticket', report_another:'Report another issue', back:'Back', next:'Next', submit_ticket:'Submit ticket',
+    issue_waterlogging:'Waterlogged road', issue_blocked:'Blocked / overflowing drain', issue_manhole:'Damaged manhole cover', issue_sewage:'Sewage overflow', issue_other:'Something else',
+    severity_notice:'Just noticed it', severity_notice_desc:'Not urgent, log it for the crew.', severity_worse:'Getting worse', severity_worse_desc:'Water is rising or spreading.', severity_urgent:'Urgent', severity_urgent_desc:'Water is entering homes or shops now.',
+    progress_issue:'Issue', progress_location:'Location', progress_details:'Details', progress_contact:'Contact', track_title:'Track a ticket', track_sub:'Enter the ticket ID you received when you submitted your report.', track:'Track', status_title:'City status', status_sub:'Live flood risk by area, updated from rainfall and drainage sensors.',
+    review_issue:'Issue', review_area:'Area', review_landmark:'Landmark', review_urgency:'Urgency', review_photo:'Photo', review_contact:'Contact', not_attached:'Not attached', not_provided:'Not provided'
+  },
+  hi: {
+    home_how:'यह कैसे काम करता है', home_how_sub:'साइन इन करने के बाद तीन चरण।',
+    home_step1_title:'क्या और कहाँ बताएं', home_step1_sub:'समस्या का प्रकार चुनें और स्थान बताएं — वार्ड और एक लैंडमार्क पर्याप्त है।',
+    home_step2_title:'हम सही टीम को भेजते हैं', home_step2_sub:'आपकी रिपोर्ट टिकट बनकर उस वार्ड की फील्ड टीम तक पहुँचती है।',
+    home_step3_title:'समाधान तक ट्रैक करें', home_step3_sub:'टिकट आईडी से कभी भी देखें कि रिपोर्ट स्वीकार, असाइन या ठीक हुई है।',
+    home_recent:'हाल में आसपास दर्ज रिपोर्ट', home_recent_sub:'इस सप्ताह निवासियों द्वारा दर्ज समस्याओं का नमूना।', recent_open:'खुला', recent_resolved:'समाधान हुआ',
+    recent_1:'बस डिपो के पास टखने तक पानी', recent_2:'नाली साफ, स्थिति सामान्य', recent_3:'कल रात की बारिश के बाद धीमी निकासी', recent_4:'इस सप्ताह कोई समस्या दर्ज नहीं', recent_5:'मैनहोल कवर बदला गया',
+    home_footer:'FlowNet मानसून के दौरान बाढ़ की निगरानी और रिपोर्टिंग सेवा है।', ops_link:'ऑपरेशंस और मॉनिटरिंग देखें (स्टाफ)',
+    report_title:'समस्या दर्ज करें', report_sub:'लगभग एक मिनट लगता है। आप संपर्क विवरण दिए बिना भी भेज सकते हैं।',
+    report_issue_title:'समस्या क्या है?', report_issue_sub:'आप जो देख रहे हैं उससे सबसे मिलते विकल्प को चुनें।',
+    report_location_title:'यह कहाँ है?', report_location_sub:'क्षेत्र चुनें और लैंडमार्क जोड़ें ताकि फील्ड टीम जल्दी पहुँच सके।',
+    area_label:'क्षेत्र / वार्ड', landmark_label:'लैंडमार्क या पता', landmark_placeholder:'जैसे वेलाचेरी बस डिपो के सामने, सिग्नल के पास',
+    details_title:'विवरण जोड़ें', details_sub:'संक्षिप्त विवरण और फोटो टीम को सही प्राथमिकता तय करने में मदद करते हैं।',
+    description_label:'विवरण', description_placeholder:'आप क्या देख रहे हैं? पानी कितना गहरा है और कब से है?', urgency_label:'यह कितना जरूरी है?',
+    photo_label:'फोटो (वैकल्पिक)', photo_attach:'फोटो जोड़ने के लिए टैप करें', contact_title:'आपका संपर्क विवरण',
+    contact_sub:'वैकल्पिक — टिकट के अपडेट पाने के लिए ही भरें।', name_label:'नाम', contact_label:'फोन या ईमेल', optional_placeholder:'वैकल्पिक',
+    contact_hint:'केवल इस टिकट के बारे में सूचना देने के लिए उपयोग होगा।', review_title:'समीक्षा', confirm_title:'टिकट भेज दिया गया', track_title:'टिकट ट्रैक करें', track_sub:'रिपोर्ट भेजते समय मिली टिकट आईडी दर्ज करें।', track:'ट्रैक करें', status_title:'शहर की स्थिति', status_sub:'बारिश और ड्रेनेज सेंसर से अपडेट किया गया क्षेत्रवार बाढ़ जोखिम।',
+    confirm_sub:'फील्ड टीम को सूचना दे दी गई है। प्रगति देखने के लिए इस आईडी का उपयोग करें।', copy:'कॉपी', track_this:'इस टिकट को ट्रैक करें', report_another:'एक और समस्या दर्ज करें', back:'पीछे', next:'आगे', submit_ticket:'टिकट भेजें',
+    issue_waterlogging:'जलभराव वाली सड़क', issue_blocked:'बंद / उफनती नाली', issue_manhole:'क्षतिग्रस्त मैनहोल कवर', issue_sewage:'सीवर का पानी', issue_other:'कुछ और',
+    severity_notice:'अभी देखा', severity_notice_desc:'जरूरी नहीं, टीम के लिए दर्ज करें।', severity_worse:'स्थिति बिगड़ रही है', severity_worse_desc:'पानी बढ़ या फैल रहा है।', severity_urgent:'अति आवश्यक', severity_urgent_desc:'पानी अभी घरों या दुकानों में जा रहा है।',
+    progress_issue:'समस्या', progress_location:'स्थान', progress_details:'विवरण', progress_contact:'संपर्क', review_issue:'समस्या', review_area:'क्षेत्र', review_landmark:'लैंडमार्क', review_urgency:'जरूरत', review_photo:'फोटो', review_contact:'संपर्क', not_attached:'संलग्न नहीं', not_provided:'नहीं दिया गया'
+  }
+};
+const howItWorksTranslations = {
+  bn: { home_how:'এটি কীভাবে কাজ করে', home_how_sub:'সাইন ইন করার পর তিনটি ধাপ।', home_step1_title:'কী এবং কোথায় জানান', home_step1_sub:'সমস্যার ধরন বেছে নিয়ে অবস্থান চিহ্নিত করুন — একটি ওয়ার্ড ও ল্যান্ডমার্কই যথেষ্ট।', home_step2_title:'আমরা সঠিক দলের কাছে পাঠাই', home_step2_sub:'আপনার রিপোর্ট একটি টিকিট হয়ে ওই ওয়ার্ডের ফিল্ড টিমের কাছে যায়।', home_step3_title:'সমাধান পর্যন্ত ট্র্যাক করুন', home_step3_sub:'টিকিট আইডি দিয়ে রিপোর্টের অগ্রগতি দেখুন।' },
+  te: { home_how:'ఇది ఎలా పనిచేస్తుంది', home_how_sub:'సైన్ ఇన్ చేసిన తర్వాత మూడు దశలు.', home_step1_title:'ఏమి మరియు ఎక్కడో చెప్పండి', home_step1_sub:'సమస్య రకాన్ని ఎంచుకుని ప్రదేశాన్ని గుర్తించండి — వార్డు మరియు ల్యాండ్‌మార్క్ సరిపోతాయి.', home_step2_title:'మేము సరైన బృందానికి పంపుతాము', home_step2_sub:'మీ రిపోర్ట్ టికెట్‌గా మారి ఆ వార్డు ఫీల్డ్ బృందానికి వెళ్తుంది.', home_step3_title:'పరిష్కారం వరకు ట్రాక్ చేయండి', home_step3_sub:'మీ టికెట్ ఐడీతో నివేదిక స్థితిని ఎప్పుడైనా చూడండి.' },
+  mr: { home_how:'हे कसे कार्य करते', home_how_sub:'साइन इन केल्यानंतर तीन टप्पे.', home_step1_title:'काय आणि कुठे ते सांगा', home_step1_sub:'समस्येचा प्रकार निवडा आणि ठिकाण चिन्हांकित करा — वॉर्ड आणि लँडमार्क पुरेसे आहे.', home_step2_title:'आम्ही योग्य टीमकडे पाठवतो', home_step2_sub:'तुमची तक्रार तिकीट बनून त्या वॉर्डच्या फील्ड टीमकडे जाते.', home_step3_title:'निराकरणापर्यंत ट्रॅक करा', home_step3_sub:'तिकीट आयडीने तक्रारीची स्थिती कधीही पाहा.' },
+  ta: { home_how:'இது எப்படி செயல்படுகிறது', home_how_sub:'உள்நுழைந்த பிறகு மூன்று படிகள்.', home_step1_title:'என்ன, எங்கே என்று சொல்லுங்கள்', home_step1_sub:'சிக்கல் வகையைத் தேர்ந்தெடுத்து இடத்தைக் குறிக்கவும் — வார்டும் அடையாள இடமும் போதும்.', home_step2_title:'சரியான குழுவுக்கு அனுப்புகிறோம்', home_step2_sub:'உங்கள் புகார் டிக்கெட்டாக மாறி அந்த வார்டு களக் குழுவுக்குச் செல்கிறது.', home_step3_title:'தீர்வு வரை கண்காணிக்கவும்', home_step3_sub:'டிக்கெட் ஐடி மூலம் புகாரின் நிலையை எப்போது வேண்டுமானாலும் பார்க்கலாம்.' },
+  ur: { home_how:'یہ کیسے کام کرتا ہے', home_how_sub:'سائن اِن کے بعد تین مراحل۔', home_step1_title:'کیا اور کہاں بتائیں', home_step1_sub:'مسئلے کی قسم منتخب کریں اور مقام بتائیں — وارڈ اور ایک نشانی کافی ہے۔', home_step2_title:'ہم اسے صحیح ٹیم کو بھیجتے ہیں', home_step2_sub:'آپ کی رپورٹ ٹکٹ بن کر اس وارڈ کی فیلڈ ٹیم تک پہنچتی ہے۔', home_step3_title:'حل ہونے تک ٹریک کریں', home_step3_sub:'ٹکٹ آئی ڈی سے رپورٹ کی پیش رفت کسی بھی وقت دیکھیں۔' },
+  gu: { home_how:'તે કેવી રીતે કામ કરે છે', home_how_sub:'સાઇન ઇન કર્યા પછી ત્રણ પગલાં.', home_step1_title:'શું અને ક્યાં તે જણાવો', home_step1_sub:'સમસ્યાનો પ્રકાર પસંદ કરો અને સ્થાન દર્શાવો — વોર્ડ અને લેન્ડમાર્ક પૂરતા છે.', home_step2_title:'અમે યોગ્ય ટીમને મોકલીએ છીએ', home_step2_sub:'તમારો રિપોર્ટ ટિકિટ બનીને તે વોર્ડની ફીલ્ડ ટીમ સુધી જાય છે.', home_step3_title:'ઉકેલ સુધી ટ્રેક કરો', home_step3_sub:'ટિકિટ આઈડીથી રિપોર્ટની સ્થિતિ ક્યારેય પણ જુઓ.' },
+  kn: { home_how:'ಇದು ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ', home_how_sub:'ಸೈನ್ ಇನ್ ಮಾಡಿದ ನಂತರ ಮೂರು ಹಂತಗಳು.', home_step1_title:'ಏನು ಮತ್ತು ಎಲ್ಲಿ ಎಂದು ತಿಳಿಸಿ', home_step1_sub:'ಸಮಸ್ಯೆಯ ಪ್ರಕಾರ ಆಯ್ಕೆ ಮಾಡಿ ಸ್ಥಳ ಗುರುತಿಸಿ — ವಾರ್ಡ್ ಮತ್ತು ಲ್ಯಾಂಡ್‌ಮಾರ್ಕ್ ಸಾಕು.', home_step2_title:'ನಾವು ಸರಿಯಾದ ತಂಡಕ್ಕೆ ಕಳುಹಿಸುತ್ತೇವೆ', home_step2_sub:'ನಿಮ್ಮ ವರದಿ ಟಿಕೆಟ್ ಆಗಿ ಆ ವಾರ್ಡ್‌ನ ಫೀಲ್ಡ್ ತಂಡಕ್ಕೆ ಹೋಗುತ್ತದೆ.', home_step3_title:'ಪರಿಹಾರವಾಗುವವರೆಗೆ ಟ್ರ್ಯಾಕ್ ಮಾಡಿ', home_step3_sub:'ಟಿಕೆಟ್ ಐಡಿಯಿಂದ ವರದಿಯ ಸ್ಥಿತಿಯನ್ನು ಯಾವಾಗ ಬೇಕಾದರೂ ನೋಡಿ.' },
+  ml: { home_how:'ഇത് എങ്ങനെ പ്രവർത്തിക്കുന്നു', home_how_sub:'സൈൻ ഇൻ ചെയ്ത ശേഷം മൂന്ന് ഘട്ടങ്ങൾ.', home_step1_title:'എന്താണെന്നും എവിടെയെന്നും പറയുക', home_step1_sub:'പ്രശ്നത്തിന്റെ തരം തിരഞ്ഞെടുത്ത് സ്ഥലം അടയാളപ്പെടുത്തുക — വാർഡും ലാൻഡ്‌മാർക്കും മതി.', home_step2_title:'ശരിയായ ടീമിലേക്ക് അയയ്ക്കുന്നു', home_step2_sub:'നിങ്ങളുടെ റിപ്പോർട്ട് ടിക്കറ്റായി ആ വാർഡിന്റെ ഫീൽഡ് ടീമിലേക്ക് പോകുന്നു.', home_step3_title:'പരിഹാരം വരെ ട്രാക്ക് ചെയ്യുക', home_step3_sub:'ടിക്കറ്റ് ഐഡി ഉപയോഗിച്ച് റിപ്പോർട്ടിന്റെ നില എപ്പോൾ വേണമെങ്കിലും കാണുക.' },
+  or: { home_how:'ଏହା କିପରି କାମ କରେ', home_how_sub:'ସାଇନ୍ ଇନ୍ ପରେ ତିନୋଟି ପଦକ୍ଷେପ।', home_step1_title:'କ’ଣ ଏବଂ କେଉଁଠି କୁହନ୍ତୁ', home_step1_sub:'ସମସ୍ୟାର ପ୍ରକାର ବାଛନ୍ତୁ ଏବଂ ସ୍ଥାନ ଚିହ୍ନଟ କରନ୍ତୁ — ୱାର୍ଡ ଓ ଲ୍ୟାଣ୍ଡମାର୍କ ଯଥେଷ୍ଟ।', home_step2_title:'ଆମେ ଠିକ୍ ଦଳକୁ ପଠାଉ', home_step2_sub:'ଆପଣଙ୍କ ରିପୋର୍ଟ ଟିକେଟ୍ ହୋଇ ସେହି ୱାର୍ଡର ଫିଲ୍ଡ ଟିମ୍ ପାଖକୁ ଯାଏ।', home_step3_title:'ସମାଧାନ ପର୍ଯ୍ୟନ୍ତ ଟ୍ରାକ୍ କରନ୍ତୁ', home_step3_sub:'ଟିକେଟ୍ ଆଇଡିରେ ରିପୋର୍ଟର ସ୍ଥିତି ଦେଖନ୍ତୁ।' },
+  pa: { home_how:'ਇਹ ਕਿਵੇਂ ਕੰਮ ਕਰਦਾ ਹੈ', home_how_sub:'ਸਾਈਨ ਇਨ ਕਰਨ ਤੋਂ ਬਾਅਦ ਤਿੰਨ ਕਦਮ।', home_step1_title:'ਕੀ ਅਤੇ ਕਿੱਥੇ ਦੱਸੋ', home_step1_sub:'ਸਮੱਸਿਆ ਦੀ ਕਿਸਮ ਚੁਣੋ ਅਤੇ ਥਾਂ ਦਰਜ ਕਰੋ — ਵਾਰਡ ਅਤੇ ਨਿਸ਼ਾਨੀ ਕਾਫ਼ੀ ਹੈ।', home_step2_title:'ਅਸੀਂ ਸਹੀ ਟੀਮ ਨੂੰ ਭੇਜਦੇ ਹਾਂ', home_step2_sub:'ਤੁਹਾਡੀ ਰਿਪੋਰਟ ਟਿਕਟ ਬਣ ਕੇ ਉਸ ਵਾਰਡ ਦੀ ਫੀਲਡ ਟੀਮ ਕੋਲ ਜਾਂਦੀ ਹੈ।', home_step3_title:'ਹੱਲ ਹੋਣ ਤੱਕ ਟ੍ਰੈਕ ਕਰੋ', home_step3_sub:'ਟਿਕਟ ਆਈਡੀ ਨਾਲ ਰਿਪੋਰਟ ਦੀ ਸਥਿਤੀ ਕਦੇ ਵੀ ਵੇਖੋ।' },
+  as: { home_how:'ই কেনেকৈ কাম কৰে', home_how_sub:'ছাইন ইন কৰাৰ পিছত তিনিটা পদক্ষেপ।', home_step1_title:'কি আৰু ক’ত জনাওক', home_step1_sub:'সমস্যাৰ ধৰণ বাছি স্থান চিহ্নিত কৰক — ৱাৰ্ড আৰু এটা লেণ্ডমাৰ্কেই যথেষ্ট।', home_step2_title:'আমি সঠিক দললৈ পঠিয়াওঁ', home_step2_sub:'আপোনাৰ প্ৰতিবেদন টিকট হৈ সেই ৱাৰ্ডৰ ফিল্ড দললৈ যায়।', home_step3_title:'সমাধানলৈকে ট্ৰেক কৰক', home_step3_sub:'টিকট আইডিৰে প্ৰতিবেদনৰ অৱস্থা যিকোনো সময়তে চাওক।' },
+  mai: { home_how:'ई कोना काज करैत अछि', home_how_sub:'साइन इनक बाद तीन चरण।', home_step1_title:'की आ कतय बताउ', home_step1_sub:'समस्याक प्रकार चुनू आ स्थान चिन्हित करू — वार्ड आ लैंडमार्क पर्याप्त अछि।', home_step2_title:'हम सही टीम लग पठबैत छी', home_step2_sub:'अहाँक रिपोर्ट टिकट बनि कए ओहि वार्डक फील्ड टीम लग जाइत अछि।', home_step3_title:'समाधान धरि ट्रैक करू', home_step3_sub:'टिकट आईडी सँ रिपोर्टक स्थिति कहियो देखू।' },
+  sa: { home_how:'एतत् कथं कार्यं करोति', home_how_sub:'प्रवेशानन्तरं त्रयः चरणाः।', home_step1_title:'किं कुत्र इति कथयतु', home_step1_sub:'समस्यायाः प्रकारं चित्वा स्थानं सूचयतु — वार्ड-चिह्नं पर्याप्तम्।', home_step2_title:'वयं सम्यक् दलं प्रति प्रेषयामः', home_step2_sub:'भवतः निवेदनं टिकट् भूत्वा तत् क्षेत्रीयदलाय गच्छति।', home_step3_title:'समाधानपर्यन्तं अनुसरतु', home_step3_sub:'टिकट्-सङ्ख्यया निवेदनस्य स्थितिं पश्यतु।' },
+  ks: { home_how:'یہ کٲم کٲتھ کَرِ', home_how_sub:'سائن اِن کَرنہٕ پتہٕ ترٛے قدم۔', home_step1_title:'کیا تہِ کُتھ بوزِو', home_step1_sub:'مسئلے ہُند قٕسم ژٕٹھی تہِ جاے نِشان دِو۔', home_step2_title:'اَس صحیح ٹیمس پٮ۪ٹھ پٲٹھاو', home_step2_sub:'تُہند رپورٹ ٹکٹ بَنی تہِ فیلڈ ٹیمس پٮ۪ٹھ گژھ۔', home_step3_title:'حل گژھن تام ٹریک کٔرِو', home_step3_sub:'ٹکٹ آئی ڈی سٕتۍ رپورٹ ہُند حال وُچھِو۔' },
+  ne: { home_how:'यसले कसरी काम गर्छ', home_how_sub:'साइन इन गरेपछि तीन चरण।', home_step1_title:'के र कहाँ बताउनुहोस्', home_step1_sub:'समस्याको प्रकार छान्नुहोस् र स्थान चिनाउनुहोस् — वडा र ल्यान्डमार्क पर्याप्त छ।', home_step2_title:'हामी सही टोलीलाई पठाउँछौँ', home_step2_sub:'तपाईंको रिपोर्ट टिकट बनेर त्यस वडाको फिल्ड टोलीमा जान्छ।', home_step3_title:'समाधान नभएसम्म ट्र्याक गर्नुहोस्', home_step3_sub:'टिकट आईडीबाट रिपोर्टको स्थिति हेर्नुहोस्।' },
+  kok: { home_how:'हें कसें काम करता', home_how_sub:'साइन इन केल्या उपरांत तीन पावलां.', home_step1_title:'कितें आ खंय तें सांगात', home_step1_sub:'समस्या प्रकार निवडात आनी जागो दाखयात — वॉर्ड आनी लँडमार्क पुराय.', home_step2_title:'आमी योग्य टीम कडेन धाडतात', home_step2_sub:'तुमची रिपोर्ट तिकीट जावन त्या वॉर्डाच्या फील्ड टीम कडेन वता.', home_step3_title:'सुटो मेळो मेरेन ट्रॅक करात', home_step3_sub:'तिकीट आयडी वरवीं रिपोर्टाची स्थिती पळयात.' },
+  sd: { home_how:'هي ڪيئن ڪم ڪري ٿو', home_how_sub:'سائن اِن کان پوءِ ٽي مرحلا.', home_step1_title:'ڇا ۽ ڪٿي ٻڌايو', home_step1_sub:'مسئلي جو قسم چونڊيو ۽ جاءِ نشان لڳايو — وارڊ ۽ نشاني ڪافي آهي.', home_step2_title:'اسان صحيح ٽيم ڏانهن موڪليون ٿا', home_step2_sub:'توهان جي رپورٽ ٽڪيٽ بڻجي ان وارڊ جي فيلڊ ٽيم ڏانهن وڃي ٿي.', home_step3_title:'حل ٿيڻ تائين ٽريڪ ڪريو', home_step3_sub:'ٽڪيٽ آءِ ڊي سان رپورٽ جي حالت ڏسو.' },
+  doi: { home_how:'एह् कियां कम्म करदा ऐ', home_how_sub:'साइन इन करने दे बाद त्रै चरण।', home_step1_title:'केह् ते कुत्थें दस्सो', home_step1_sub:'समस्या दी किस्म चुनो ते थाहर निशान लाओ — वार्ड ते लैंडमार्क काफी ऐ।', home_step2_title:'असें सही टीम गी भेजने आं', home_step2_sub:'तुंदी रिपोर्ट टिकट बनियै उस वार्ड दी फील्ड टीम तगर जंदी ऐ।', home_step3_title:'हल होने तगर ट्रैक करो', home_step3_sub:'टिकट आईडी कन्नै रिपोर्ट दा हाल दिक्खो।' },
+  mni: { home_how:'মসি করিগুমা থোকপা', home_how_sub:'সাইন ইন তৌরগা থোকপা মথং.', home_step1_title:'করিগুমসুং কদায়দা হায়বিয়ু', home_step1_sub:'সমস্যাগী মখল খনবিয়ু অমসুং মফম পীরকউ.', home_step2_title:'সঠিক দলদা পীবিয়ু', home_step2_sub:'নহাক্কী রিপোর্ট টিকেত ওইনা ফিল্ড দলদা চৎলি.', home_step3_title:'ফজবা ফাওবা ট্রেক তৌবিয়ু', home_step3_sub:'টিকেত আইডীনা রিপোর্টগী মতাং উবিয়ু।' },
+  sat: { home_how:'নেয়া লেকাতে কানা', home_how_sub:'সাইন ইন তায় তিন ধাপ।', home_step1_title:'চে আর কোথায় কাথা', home_step1_sub:'সমস্যা বাছাও আর জায়গা চিহ্নাও।', home_step2_title:'ঠিকে দল রে পাঠাও', home_step2_sub:'আপনার রিপোর্ট টিকিট হইয়া মাঠ দল রে যায়।', home_step3_title:'ঠিকে হওয়া তক ট্র্যাক', home_step3_sub:'টিকিট আইডি দিয়া অবস্থা দেখাও।' },
+  brx: { home_how:'बेयो माबोरै मावो', home_how_sub:'साइन इन खालामनायनि उनाव खामानि.', home_step1_title:'मा आरो बबे जायगायाव होयो', home_step1_sub:'जेंनाफोरनि रोखोम सायख आरो जायगा चिन्ह हो।', home_step2_title:'मिथिगौ टिमाव थांयो', home_step2_sub:'नोंथांनि रिपोर्ट टिकेत जाबो आरो फील्ड टिमाव थांयो।', home_step3_title:'साफ जाफिनाय सिम ट्रेक खालाम', home_step3_sub:'टिकेत आइडिया जों रिपोर्टनि हालत नु।' }
+};
+Object.keys(howItWorksTranslations).forEach(function(lang){
+  Object.assign(i18n[lang], howItWorksTranslations[lang]);
+});
+const recentReportTranslations = {
+  bn:{home_recent:'সম্প্রতি কাছাকাছি রিপোর্ট',home_recent_sub:'এই সপ্তাহে বাসিন্দাদের রিপোর্ট করা সমস্যার নমুনা।',recent_open:'খোলা',recent_resolved:'সমাধান হয়েছে'},
+  te:{home_recent:'ఇటీవల సమీపంలో నివేదించినవి',home_recent_sub:'ఈ వారం నివాసితులు నివేదించిన సమస్యల నమూనా.',recent_open:'తెరిచి ఉంది',recent_resolved:'పరిష్కరించబడింది'},
+  mr:{home_recent:'अलीकडे जवळ नोंदवलेल्या तक्रारी',home_recent_sub:'या आठवड्यात रहिवाशांनी नोंदवलेल्या समस्यांचा नमुना.',recent_open:'प्रलंबित',recent_resolved:'निराकरण झाले'},
+  ta:{home_recent:'சமீபத்தில் அருகில் தெரிவிக்கப்பட்டவை',home_recent_sub:'இந்த வாரம் குடியிருப்பாளர்கள் தெரிவித்த சிக்கல்களின் மாதிரி.',recent_open:'திறந்தது',recent_resolved:'தீர்க்கப்பட்டது',recent_1:'பேருந்து நிலையம் அருகே கணுக்கால் ஆழம் நீர்',recent_2:'வடிகால் சுத்தம் செய்யப்பட்டது, நிலை இயல்பு',recent_3:'நேற்று இரவு மழைக்குப் பிறகு மெதுவான வடிகால்',recent_4:'இந்த வாரம் எந்தப் பிரச்சினையும் இல்லை',recent_5:'மன்ஹோல் மூடி மாற்றப்பட்டது'},
+  ur:{home_recent:'حال ہی میں قریب رپورٹ شدہ',home_recent_sub:'اس ہفتے رہائشیوں کی رپورٹ کردہ مشکلات کا نمونہ۔',recent_open:'کھلا',recent_resolved:'حل شدہ'},
+  gu:{home_recent:'તાજેતરમાં નજીક નોંધાયેલ',home_recent_sub:'આ અઠવાડિયે રહેવાસીઓ દ્વારા નોંધાયેલી સમસ્યાઓનો નમૂનો.',recent_open:'ખુલ્લું',recent_resolved:'ઉકેલાયું'},
+  kn:{home_recent:'ಇತ್ತೀಚೆಗೆ ಸಮೀಪದಲ್ಲಿ ವರದಿಯಾದವು',home_recent_sub:'ಈ ವಾರ ನಿವಾಸಿಗಳು ವರದಿ ಮಾಡಿದ ಸಮಸ್ಯೆಗಳ ಮಾದರಿ.',recent_open:'ತೆರೆದಿದೆ',recent_resolved:'ಪರಿಹರಿಸಲಾಗಿದೆ'},
+  ml:{home_recent:'അടുത്തിടെ സമീപത്ത് റിപ്പോർട്ട് ചെയ്തത്',home_recent_sub:'ഈ ആഴ്ച താമസക്കാർ റിപ്പോർട്ട് ചെയ്ത പ്രശ്നങ്ങളുടെ മാതൃക.',recent_open:'തുറന്നത്',recent_resolved:'പരിഹരിച്ചു',recent_area_1:'വെളച്ചേരി',recent_area_2:'ടി നഗർ',recent_area_3:'അടയാർ',recent_area_4:'പെരുങ്ങുടി',recent_area_5:'നുങ്കമ്പാക്കം',recent_1:'ബസ് ഡിപ്പോയ്ക്ക് സമീപം കണങ്കാൽ ആഴത്തിൽ വെള്ളം',recent_2:'ഓട വൃത്തിയാക്കി, സ്ഥിതി സാധാരണ നിലയിൽ',recent_3:'കഴിഞ്ഞ രാത്രിയിലെ മഴയ്ക്ക് ശേഷം മന്ദഗതിയിലുള്ള നീരൊഴുക്ക്',recent_4:'ഈ ആഴ്ച പ്രശ്നങ്ങളൊന്നും റിപ്പോർട്ട് ചെയ്തിട്ടില്ല',recent_5:'മാൻഹോൾ കവർ മാറ്റി'},
+  or:{home_recent:'ନିକଟରେ ସମ୍ପ୍ରତି ରିପୋର୍ଟ ହୋଇଥିବା',home_recent_sub:'ଏହି ସପ୍ତାହରେ ବାସିନ୍ଦାମାନେ ରିପୋର୍ଟ କରିଥିବା ସମସ୍ୟାର ନମୁନା।',recent_open:'ଖୋଲା',recent_resolved:'ସମାଧାନ ହୋଇଛି'},
+  pa:{home_recent:'ਹਾਲ ਹੀ ਵਿੱਚ ਨੇੜੇ ਰਿਪੋਰਟ ਕੀਤੇ',home_recent_sub:'ਇਸ ਹਫ਼ਤੇ ਵਸਨੀਕਾਂ ਵੱਲੋਂ ਰਿਪੋਰਟ ਕੀਤੀਆਂ ਸਮੱਸਿਆਵਾਂ ਦਾ ਨਮੂਨਾ।',recent_open:'ਖੁੱਲ੍ਹਾ',recent_resolved:'ਹੱਲ ਹੋਇਆ'},
+  as:{home_recent:'শেহতীয়াকৈ ওচৰত প্ৰতিবেদন কৰা',home_recent_sub:'এই সপ্তাহত বাসিন্দাসকলে প্ৰতিবেদন কৰা সমস্যাৰ নমুনা।',recent_open:'মুকলি',recent_resolved:'সমাধান হৈছে'},
+  mai:{home_recent:'हालमे आसपास दर्ज रिपोर्ट',home_recent_sub:'एहि सप्ताह बासिन्दा द्वारा दर्ज समस्याक नमूना।',recent_open:'खुलल',recent_resolved:'समाधान भेल'},
+  sa:{home_recent:'समीपे नूतनतया निवेदितानि',home_recent_sub:'अस्मिन् सप्ताहे निवासिभिः निवेदितानां समस्याणां नमूना।',recent_open:'उद्घाटितम्',recent_resolved:'समाधितम्'},
+  ks:{home_recent:'حالٕے منز نٔزدیٖک رپورٹ',home_recent_sub:'یِم مسئلے رہن وٲلین ہَتھ یہِ ہفتہ رپورٹ کٔر۔',recent_open:'کُھلہٕ',recent_resolved:'حل گٔیہٕ'},
+  ne:{home_recent:'हालै नजिकै रिपोर्ट गरिएका',home_recent_sub:'यस हप्ता बासिन्दाहरूले रिपोर्ट गरेका समस्याहरूको नमुना।',recent_open:'खुला',recent_resolved:'समाधान भयो'},
+  kok:{home_recent:'नुकतें लागीं कळयल्लें',home_recent_sub:'ह्या सप्तकांत रावपी लोकांनी कळयल्ल्या समस्यांचो नमुनो.',recent_open:'उगडें',recent_resolved:'सुटलें'},
+  sd:{home_recent:'تازو ويجهو رپورٽ ٿيل',home_recent_sub:'هن هفتي رهواسين پاران رپورٽ ڪيل مسئلن جو نمونو.',recent_open:'کليل',recent_resolved:'حل ٿيل'},
+  doi:{home_recent:'हाल च नेड़े रिपोर्ट कीते',home_recent_sub:'इस हफ्ते बसनीकें आसे रिपोर्ट कीती गेदी समस्याएं दा नमूना।',recent_open:'खुल्ला',recent_resolved:'हल होई गेआ'},
+  mni:{home_recent:'হৌজিক নক্না রিপোর্ট তৌরিবা',home_recent_sub:'নুপীশিংনা হৌজিক্কী ৱারদা রিপোর্ট তৌরিবা সমস্যাগী মখল।',recent_open:'হাংদোকপা',recent_resolved:'ফজরবা'},
+  sat:{home_recent:'নেয়া হেনা রিপোর্ট',home_recent_sub:'নিত্ বাসিন্দা কো রিপোর্ট কেদা সমস্যার নমুনা।',recent_open:'জুলুম',recent_resolved:'মিটাও'},
+  brx:{home_recent:'दानिया हाबहाय रिपोर्ट जाबाय',home_recent_sub:'बे सप्ताहाव हाबासिफोरनि रिपोर्टनि नमुना।',recent_open:'खुलि',recent_resolved:'सुफुं जाबाय'}
+};
+Object.keys(recentReportTranslations).forEach(function(lang){
+  Object.assign(i18n[lang], recentReportTranslations[lang]);
+});
+Object.keys(workflowTranslations).forEach(function(lang){
+  Object.assign(i18n[lang], workflowTranslations[lang]);
+});
+const recentCardTranslations = {
+  en:{recent_area_1:'Velachery',recent_area_2:'T Nagar',recent_area_3:'Adyar',recent_area_4:'Perungudi',recent_area_5:'Nungambakkam'},
+  hi:{recent_area_1:'वेलाचेरी',recent_area_2:'टी नगर',recent_area_3:'अडयार',recent_area_4:'पेरुंगुडी',recent_area_5:'नुंगमबक्कम'},
+  bn:{recent_area_1:'ভেলাচেরি',recent_area_2:'টি নগর',recent_area_3:'আদয়ার',recent_area_4:'পেরুঙ্গুড়ি',recent_area_5:'নুঙ্গামবাক্কাম',recent_1:'বাস ডিপোর কাছে গোড়ালি-সমান জল',recent_2:'নর্দমা পরিষ্কার, অবস্থা স্বাভাবিক',recent_3:'গত রাতের বৃষ্টির পর ধীর নিষ্কাশন',recent_4:'এই সপ্তাহে কোনো সমস্যা রিপোর্ট হয়নি',recent_5:'ম্যানহোলের ঢাকনা বদলানো হয়েছে'},
+  te:{recent_area_1:'వెలచేరి',recent_area_2:'టి నగర్',recent_area_3:'అడయార్',recent_area_4:'పెరుంగుడి',recent_area_5:'నుంగంబాక్కం',recent_1:'బస్ డిపో సమీపంలో చీలమండ లోతు నీరు',recent_2:'కాలువ శుభ్రం, పరిస్థితి సాధారణం',recent_3:'నిన్న రాత్రి వర్షం తర్వాత నెమ్మదిగా నీటి ప్రవాహం',recent_4:'ఈ వారం ఎలాంటి సమస్యలు నివేదించలేదు',recent_5:'మ్యాన్‌హోల్ మూత మార్చబడింది'},
+  mr:{recent_area_1:'वेलाचेरी',recent_area_2:'टी नगर',recent_area_3:'अड्यार',recent_area_4:'पेरुंगुडी',recent_area_5:'नुंगमबक्कम',recent_1:'बस डेपो जवळ घोटाभर पाणी',recent_2:'नाला साफ, स्थिती पूर्ववत',recent_3:'काल रात्रीच्या पावसानंतर संथ निचरा',recent_4:'या आठवड्यात कोणतीही समस्या नोंदली नाही',recent_5:'मॅनहोलचे झाकण बदलले'},
+  ta:{recent_area_1:'வேளச்சேரி',recent_area_2:'தி நகர்',recent_area_3:'அடையாறு',recent_area_4:'பெருங்குடி',recent_area_5:'நுங்கம்பாக்கம்'},
+  ur:{recent_area_1:'ویلاچیری',recent_area_2:'ٹی نگر',recent_area_3:'ادیار',recent_area_4:'پیرونگودی',recent_area_5:'ننگمباکم',recent_1:'بس ڈپو کے قریب ٹخنوں تک پانی',recent_2:'نالہ صاف، حالت معمول پر',recent_3:'گزشتہ رات کی بارش کے بعد سست نکاسی',recent_4:'اس ہفتے کوئی مسئلہ رپورٹ نہیں ہوا',recent_5:'مین ہول کا ڈھکن بدل دیا گیا'},
+  gu:{recent_area_1:'વેલાચેરી',recent_area_2:'ટી નગર',recent_area_3:'અડયાર',recent_area_4:'પેરુંગુડી',recent_area_5:'નુંગમબક્કમ',recent_1:'બસ ડેપો પાસે પગની ઘૂંટી જેટલું પાણી',recent_2:'ગટર સાફ, સ્થિતિ સામાન્ય',recent_3:'ગઈ રાતના વરસાદ પછી ધીમો નિકાલ',recent_4:'આ અઠવાડિયે કોઈ સમસ્યા નોંધાઈ નથી',recent_5:'મેનહોલનું ઢાંકણ બદલાયું'},
+  kn:{recent_area_1:'ವೆಳಚ್ಚೇರಿ',recent_area_2:'ಟಿ ನಗರ',recent_area_3:'ಅಡ್ಯಾರ್',recent_area_4:'ಪೆರುಂಗುಡಿ',recent_area_5:'ನುಂಗಂಬಾಕ್ಕಂ',recent_1:'ಬಸ್ ಡಿಪೋ ಬಳಿ ಪಾದದಷ್ಟು ನೀರು',recent_2:'ಚರಂಡಿ ಸ್ವಚ್ಛ, ಸ್ಥಿತಿ ಸಾಮಾನ್ಯ',recent_3:'ನಿನ್ನೆ ರಾತ್ರಿ ಮಳೆಯ ನಂತರ ನಿಧಾನಗತಿಯ ಹರಿವು',recent_4:'ಈ ವಾರ ಯಾವುದೇ ಸಮಸ್ಯೆ ವರದಿಯಾಗಿಲ್ಲ',recent_5:'ಮ್ಯಾನ್‌ಹೋಲ್ ಮುಚ್ಚಳ ಬದಲಿಸಲಾಗಿದೆ'},
+  ml:{recent_area_1:'വെളച്ചേരി',recent_area_2:'ടി നഗർ',recent_area_3:'അടയാർ',recent_area_4:'പെരുങ്ങുടി',recent_area_5:'നുങ്കമ്പാക്കം'},
+  or:{recent_area_1:'ଭେଲାଚେରୀ',recent_area_2:'ଟି ନଗର',recent_area_3:'ଆଦୟାର',recent_area_4:'ପେରୁଙ୍ଗୁଡି',recent_area_5:'ନୁଙ୍ଗମ୍ବାକ୍କମ୍',recent_1:'ବସ୍ ଡିପୋ ନିକଟରେ ଗୋଡ଼ ଗଭୀର ପାଣି',recent_2:'ନାଳ ସଫା, ସ୍ଥିତି ସ୍ୱାଭାବିକ',recent_3:'ଗତ ରାତିର ବର୍ଷା ପରେ ଧୀର ନିଷ୍କାସନ',recent_4:'ଏହି ସପ୍ତାହରେ କୌଣସି ସମସ୍ୟା ରିପୋର୍ଟ ହୋଇନାହିଁ',recent_5:'ମ୍ୟାନହୋଲ୍ ଢାଙ୍କଣା ବଦଳାଯାଇଛି'},
+  pa:{recent_area_1:'ਵੇਲਾਚੇਰੀ',recent_area_2:'ਟੀ ਨਗਰ',recent_area_3:'ਅਡਿਆਰ',recent_area_4:'ਪੇਰੁੰਗੁਡੀ',recent_area_5:'ਨੁੰਗਮਬੱਕਮ',recent_1:'ਬੱਸ ਡਿਪੂ ਨੇੜੇ ਗਿੱਟੇ ਤੱਕ ਪਾਣੀ',recent_2:'ਨਾਲਾ ਸਾਫ਼, ਹਾਲਤ ਆਮ',recent_3:'ਬੀਤੀ ਰਾਤ ਦੀ ਬਾਰਿਸ਼ ਤੋਂ ਬਾਅਦ ਹੌਲੀ ਨਿਕਾਸੀ',recent_4:'ਇਸ ਹਫ਼ਤੇ ਕੋਈ ਸਮੱਸਿਆ ਰਿਪੋਰਟ ਨਹੀਂ ਹੋਈ',recent_5:'ਮੈਨਹੋਲ ਦਾ ਢੱਕਣ ਬਦਲਿਆ ਗਿਆ'},
+  as:{recent_area_1:'ভেলাচেৰী',recent_area_2:'টি নগৰ',recent_area_3:'আদিয়াৰ',recent_area_4:'পেৰুংগুড়ি',recent_area_5:'নুংগামবাক্কম',recent_1:'বাছ ডিপোৰ ওচৰত গোৰোহা সমান পানী',recent_2:'নলা পৰিষ্কাৰ, অৱস্থা স্বাভাৱিক',recent_3:'যোৱা নিশাৰ বৰষুণৰ পিছত লেহেমীয়া নিষ্কাশন',recent_4:'এই সপ্তাহত কোনো সমস্যা প্ৰতিবেদন হোৱা নাই',recent_5:'মেনহোলৰ ঢাকনি সলনি কৰা হৈছে'},
+  mai:{recent_area_1:'वेलाचेरी',recent_area_2:'टी नगर',recent_area_3:'अडयार',recent_area_4:'पेरुंगुडी',recent_area_5:'नुंगम्बक्कम',recent_1:'बस डिपोक लग घुटना भरि पानि',recent_2:'नाला साफ, स्थिति सामान्य',recent_3:'काल्हि रातिक वर्षाक बाद धीम निकासी',recent_4:'एहि सप्ताह कोनो समस्या दर्ज नहि भेल',recent_5:'मैनहोलक ढक्कन बदलल गेल'},
+  sa:{recent_area_1:'वेलाचेरी',recent_area_2:'टी-नगरम्',recent_area_3:'अडयारः',recent_area_4:'पेरुङ्गुडी',recent_area_5:'नुङ्गम्बाक्कम्',recent_1:'बसस्थानकस्य समीपे जानुपर्यन्तं जलम्',recent_2:'नालिका स्वच्छा, स्थितिः सामान्यः',recent_3:'गतस्य रात्रेः वर्षायाः पश्चात् मन्दः प्रवाहः',recent_4:'अस्मिन् सप्ताहे समस्या न निवेदिता',recent_5:'मैनहोलस्य आवरणं परिवर्तितम्'},
+  ks:{recent_area_1:'ویلاچیری',recent_area_2:'ٹی نگر',recent_area_3:'ادیار',recent_area_4:'پیرُنگوڈی',recent_area_5:'نُنگمباکم',recent_1:'بس ڈپو نزدیٖک ٹخنہٕ تام پانی',recent_2:'نالہٕ صاف، حالت معمول',recent_3:'گژھِ راتہٕ بارش پٮ۪ٹھ سُست نکاسی',recent_4:'یہِ ہفتہٕ کانہہ مسئلہ رپورٹ نہٕ',recent_5:'مین ہول ہُند ڈھک بدل گژھ'},
+  ne:{recent_area_1:'वेलाचेरी',recent_area_2:'टी नगर',recent_area_3:'अड्यार',recent_area_4:'पेरुंगुडी',recent_area_5:'नुङ्गमबक्कम',recent_1:'बस डिपो नजिक गोलीगाँठासम्म पानी',recent_2:'नाला सफा, अवस्था सामान्य',recent_3:'हिजो रातिको वर्षापछि ढिलो निकास',recent_4:'यस हप्ता कुनै समस्या रिपोर्ट भएको छैन',recent_5:'म्यानहोलको ढकनी फेरियो'},
+  kok:{recent_area_1:'वेळचेरी',recent_area_2:'टी नगर',recent_area_3:'अडयार',recent_area_4:'पेरुंगुडी',recent_area_5:'नुंगमबक्कम',recent_1:'बस डेपो लागीं गोंडोभर उदक',recent_2:'नालो साफ, स्थिती सादारण',recent_3:'कालच्या पावसा उपरांत सावकाश निचरो',recent_4:'ह्या सप्तकांत कसलोच त्रास कळयलो ना',recent_5:'मॅनहोलाचें झाकण बदललें'},
+  sd:{recent_area_1:'ويلاچيري',recent_area_2:'ٽي نگر',recent_area_3:'اديار',recent_area_4:'پيرونگودي',recent_area_5:'ننگمباڪم',recent_1:'بس ڊپو وٽ ٽخني جيترو پاڻي',recent_2:'نال صاف، حالت معمول',recent_3:'گذريل رات جي برسات کان پوءِ سست نيڪال',recent_4:'هن هفتي ڪا به تڪليف رپورٽ نه ٿي',recent_5:'مين هول جو ڍڪ تبديل ڪيو ويو'},
+  doi:{recent_area_1:'वेलाचेरी',recent_area_2:'टी नगर',recent_area_3:'अड्यार',recent_area_4:'पेरुंगुडी',recent_area_5:'नुंगमबक्कम',recent_1:'बस डिप्पो नेड़े गिट्ठे तगर पानी',recent_2:'नाली साफ, हालत सामान्य',recent_3:'कल रातें दी बरखा बाद धीमी निकासी',recent_4:'इस हफ्ते कोई समस्या रिपोर्ट नेईं होई',recent_5:'मैनहोल दा ढक्कन बदली दित्ता'},
+  mni:{recent_area_1:'ভেলাচেরী',recent_area_2:'টি নগর',recent_area_3:'অদিয়ার',recent_area_4:'পেরুঙগুড়ি',recent_area_5:'নুংগমবাক্কম',recent_1:'বাস ডিপোগী মখাদা মখল অমগী ইশিং',recent_2:'নালা শেমদোক্লে, ফজনা লৈ',recent_3:'নুমিত্তগী নুমিদাংগী ইশিং থোকপা',recent_4:'নুমিত্তদা খুদক্তা কোনো সমস্যা রিপোর্ট তৌদে',recent_5:'মেনহোলগী ঢাক্কা হংদোক্লে'},
+  sat:{recent_area_1:'ভেলাচেরী',recent_area_2:'টি নগর',recent_area_3:'আদয়ার',recent_area_4:'পেরুঙ্গুড়ি',recent_area_5:'নুঙ্গামবাক্কাম',recent_1:'বাস ডিপো কাছে গোঁড়া সমান জল',recent_2:'নালা সাফ, অবস্থা ঠিক',recent_3:'কাল রাত বৃষ্টির পরে ধীর জল নামা',recent_4:'এই সপ্তাহ কোনো সমস্যা রিপোর্ট নাই',recent_5:'মেনহোল ঢাকনা বদলাওয়া হয়েছে'},
+  brx:{recent_area_1:'भेलाचेरी',recent_area_2:'टि नगर',recent_area_3:'आडियार',recent_area_4:'पेरुंगुडी',recent_area_5:'नुंगामबाक्काम',recent_1:'बस डिपोनि सोरगोनाव गोरोलनि बेसेब पानी',recent_2:'नाला साफ, हालत सामान्य',recent_3:'बेसेब राइजोनि उनाव सोरगोन थांनाय',recent_4:'बे सप्ताहाव जायगा जेंना रिपोर्ट जाबाय नङा',recent_5:'मैनहोलनि ढकना सोलायनाय जाबाय'}
+};
+Object.keys(recentCardTranslations).forEach(function(lang){
+  Object.assign(i18n[lang], recentCardTranslations[lang]);
+});
+const statusTranslations = {
+  en:{status_areas:'Areas being monitored',risk_low:'Low',risk_moderate:'Moderate',risk_high:'High',risk_low_desc:'No flooding expected in the next few hours.',risk_moderate_desc:'Some areas may see rising water. Avoid low-lying spots.',risk_high_desc:'Flooding likely in the areas marked below. Avoid travel there.',status_city_risk:'City-wide flood risk',zone_wardT:'T Nagar Outfall',zone_wardN:'Nungambakkam Channel',zone_wardA:'Adyar Confluence',zone_wardV:'Velachery Basin',zone_wardP:'Perungudi Lowland',zone_normal:'Normal drainage flow',zone_rising:'Water levels rising — monitor'},
+  hi:{status_areas:'निगरानी वाले क्षेत्र',risk_low:'कम',risk_moderate:'मध्यम',risk_high:'उच्च',risk_low_desc:'अगले कुछ घंटों में बाढ़ की उम्मीद नहीं है।',risk_moderate_desc:'कुछ क्षेत्रों में पानी बढ़ सकता है। निचले इलाकों से बचें।',risk_high_desc:'नीचे दिखाए गए क्षेत्रों में बाढ़ की संभावना है। वहाँ जाने से बचें।',status_city_risk:'शहर में बाढ़ का जोखिम',zone_wardT:'टी नगर आउटफॉल',zone_wardN:'नुंगमबक्कम चैनल',zone_wardA:'अडयार संगम',zone_wardV:'वेलाचेरी बेसिन',zone_wardP:'पेरुंगुडी निचला क्षेत्र',zone_normal:'सामान्य जल निकासी',zone_rising:'जल स्तर बढ़ रहा है — निगरानी रखें'},
+  bn:{status_areas:'পর্যবেক্ষণ করা এলাকাগুলি',risk_low:'কম',risk_moderate:'মাঝারি',risk_high:'উচ্চ',risk_low_desc:'আগামী কয়েক ঘণ্টায় বন্যার সম্ভাবনা নেই।',risk_moderate_desc:'কিছু এলাকায় জল বাড়তে পারে। নিচু এলাকা এড়িয়ে চলুন।',risk_high_desc:'নিচে চিহ্নিত এলাকায় বন্যার সম্ভাবনা রয়েছে। সেখানে যাতায়াত এড়ান।',status_city_risk:'শহরজুড়ে বন্যার ঝুঁকি',zone_wardT:'টি নগর আউটফল',zone_wardN:'নুঙ্গামবাক্কাম চ্যানেল',zone_wardA:'আদয়ার সঙ্গম',zone_wardV:'ভেলাচেরি বেসিন',zone_wardP:'পেরুঙ্গুড়ি নিম্নভূমি',zone_normal:'স্বাভাবিক জল নিষ্কাশন',zone_rising:'জলের স্তর বাড়ছে — নজর রাখুন'},
+  te:{status_areas:'పర్యవేక్షిస్తున్న ప్రాంతాలు',risk_low:'తక్కువ',risk_moderate:'మధ్యస్థం',risk_high:'అధికం',risk_low_desc:'రాబోయే కొన్ని గంటల్లో వరదలు వచ్చే అవకాశం లేదు.',risk_moderate_desc:'కొన్ని ప్రాంతాల్లో నీటి మట్టం పెరగవచ్చు. లోతట్టు ప్రాంతాలను నివారించండి.',risk_high_desc:'క్రింద గుర్తించిన ప్రాంతాల్లో వరదలు వచ్చే అవకాశం ఉంది. అక్కడికి వెళ్లవద్దు.',status_city_risk:'నగర వరద ప్రమాదం',zone_wardT:'టి నగర్ అవుట్‌ఫాల్',zone_wardN:'నుంగంబాక్కం ఛానల్',zone_wardA:'అడయార్ సంగమం',zone_wardV:'వెలచేరి బేసిన్',zone_wardP:'పెరుంగుడి లోతట్టు ప్రాంతం',zone_normal:'సాధారణ డ్రైనేజీ ప్రవాహం',zone_rising:'నీటి మట్టం పెరుగుతోంది — పర్యవేక్షించండి'},
+  mr:{status_areas:'नजर ठेवलेली क्षेत्रे',risk_low:'कमी',risk_moderate:'मध्यम',risk_high:'जास्त',risk_low_desc:'पुढील काही तासांत पूर येण्याची शक्यता नाही.',risk_moderate_desc:'काही भागात पाणी वाढू शकते. सखल भाग टाळा.',risk_high_desc:'खाली दाखवलेल्या भागात पूर येण्याची शक्यता आहे. तेथे जाणे टाळा.',status_city_risk:'शहरातील पूर धोका',zone_wardT:'टी नगर आउटफॉल',zone_wardN:'नुंगमबक्कम कालवा',zone_wardA:'अड्यार संगम',zone_wardV:'वेलाचेरी बेसिन',zone_wardP:'पेरुंगुडी सखल भाग',zone_normal:'सामान्य निचरा प्रवाह',zone_rising:'पाण्याची पातळी वाढत आहे — निरीक्षण करा'},
+  ta:{status_areas:'கண்காணிக்கப்படும் பகுதிகள்',risk_low:'குறைவு',risk_moderate:'மிதமானது',risk_high:'அதிகம்',risk_low_desc:'அடுத்த சில மணி நேரங்களில் வெள்ளம் எதிர்பார்க்கப்படவில்லை.',risk_moderate_desc:'சில பகுதிகளில் நீர்மட்டம் உயரலாம். தாழ்வான பகுதிகளைத் தவிர்க்கவும்.',risk_high_desc:'கீழே குறிக்கப்பட்ட பகுதிகளில் வெள்ளம் ஏற்பட வாய்ப்புள்ளது. அங்கு செல்வதைத் தவிர்க்கவும்.',status_city_risk:'நகர வெள்ள ஆபத்து',zone_wardT:'தி நகர் அவுட்ஃபால்',zone_wardN:'நுங்கம்பாக்கம் கால்வாய்',zone_wardA:'அடையாறு சங்கமம்',zone_wardV:'வேளச்சேரி பள்ளத்தாக்கு',zone_wardP:'பெருங்குடி தாழ்நிலம்',zone_normal:'சாதாரண வடிகால் ஓட்டம்',zone_rising:'நீர்மட்டம் உயர்கிறது — கண்காணிக்கவும்'},
+  ur:{status_areas:'نگرانی والے علاقے',risk_low:'کم',risk_moderate:'درمیانہ',risk_high:'زیادہ',risk_low_desc:'اگلے چند گھنٹوں میں سیلاب کی توقع نہیں ہے۔',risk_moderate_desc:'کچھ علاقوں میں پانی بڑھ سکتا ہے۔ نشیبی علاقوں سے بچیں۔',risk_high_desc:'نیچے نشان زدہ علاقوں میں سیلاب کا امکان ہے۔ وہاں سفر سے گریز کریں۔',status_city_risk:'شہر میں سیلاب کا خطرہ',zone_wardT:'ٹی نگر آؤٹ فال',zone_wardN:'ننگمباکم چینل',zone_wardA:'ادیار سنگم',zone_wardV:'ویلاچیری بیسن',zone_wardP:'پیرونگودی نشیبی علاقہ',zone_normal:'معمول کی نکاسی آب',zone_rising:'پانی کی سطح بڑھ رہی ہے — نگرانی کریں'},
+  gu:{status_areas:'નજર હેઠળના વિસ્તારો',risk_low:'ઓછું',risk_moderate:'મધ્યમ',risk_high:'વધુ',risk_low_desc:'આગામી થોડા કલાકોમાં પૂર આવવાની અપેક્ષા નથી.',risk_moderate_desc:'કેટલાક વિસ્તારોમાં પાણી વધી શકે છે. નીચાણવાળા વિસ્તારો ટાળો.',risk_high_desc:'નીચે દર્શાવેલા વિસ્તારોમાં પૂર આવવાની શક્યતા છે. ત્યાં જવાનું ટાળો.',status_city_risk:'શહેરમાં પૂરનું જોખમ',zone_wardT:'ટી નગર આઉટફોલ',zone_wardN:'નુંગમબક્કમ ચેનલ',zone_wardA:'અડયાર સંગમ',zone_wardV:'વેલાચેરી બેસિન',zone_wardP:'પેરુંગુડી નીચાણવાળો વિસ્તાર',zone_normal:'સામાન્ય ડ્રેનેજ પ્રવાહ',zone_rising:'પાણીનું સ્તર વધી રહ્યું છે — નજર રાખો'},
+  kn:{status_areas:'ಮೇಲ್ವಿಚಾರಣೆಯಲ್ಲಿರುವ ಪ್ರದೇಶಗಳು',risk_low:'ಕಡಿಮೆ',risk_moderate:'ಮಧ್ಯಮ',risk_high:'ಹೆಚ್ಚು',risk_low_desc:'ಮುಂದಿನ ಕೆಲವು ಗಂಟೆಗಳಲ್ಲಿ ಪ್ರವಾಹ ನಿರೀಕ್ಷಿಸಲಾಗುವುದಿಲ್ಲ.',risk_moderate_desc:'ಕೆಲವು ಪ್ರದೇಶಗಳಲ್ಲಿ ನೀರಿನ ಮಟ್ಟ ಏರಬಹುದು. ತಗ್ಗು ಪ್ರದೇಶಗಳನ್ನು ತಪ್ಪಿಸಿ.',risk_high_desc:'ಕೆಳಗೆ ಗುರುತಿಸಿದ ಪ್ರದೇಶಗಳಲ್ಲಿ ಪ್ರವಾಹದ ಸಾಧ್ಯತೆ ಇದೆ. ಅಲ್ಲಿಗೆ ಹೋಗಬೇಡಿ.',status_city_risk:'ನಗರ ಪ್ರವಾಹ ಅಪಾಯ',zone_wardT:'ಟಿ ನಗರ ಔಟ್‌ಫಾಲ್',zone_wardN:'ನುಂಗಂಬಾಕ್ಕಂ ಕಾಲುವೆ',zone_wardA:'ಅಡ್ಯಾರ್ ಸಂಗಮ',zone_wardV:'ವೆಳಚ್ಚೇರಿ ಬೇಸಿನ್',zone_wardP:'ಪೆರುಂಗುಡಿ ತಗ್ಗು ಪ್ರದೇಶ',zone_normal:'ಸಾಮಾನ್ಯ ಚರಂಡಿ ಹರಿವು',zone_rising:'ನೀರಿನ ಮಟ್ಟ ಏರುತ್ತಿದೆ — ಗಮನಿಸಿ'},
+  ml:{status_areas:'നിരീക്ഷിക്കുന്ന പ്രദേശങ്ങൾ',risk_low:'കുറവ്',risk_moderate:'മിതമായത്',risk_high:'ഉയർന്നത്',risk_low_desc:'അടുത്ത കുറച്ച് മണിക്കൂറുകളിൽ വെള്ളപ്പൊക്കം പ്രതീക്ഷിക്കുന്നില്ല.',risk_moderate_desc:'ചില പ്രദേശങ്ങളിൽ ജലനിരപ്പ് ഉയരാം. താഴ്ന്ന പ്രദേശങ്ങൾ ഒഴിവാക്കുക.',risk_high_desc:'താഴെ അടയാളപ്പെടുത്തിയ പ്രദേശങ്ങളിൽ വെള്ളപ്പൊക്കത്തിന് സാധ്യതയുണ്ട്. അവിടേക്കുള്ള യാത്ര ഒഴിവാക്കുക.',status_city_risk:'നഗരത്തിലെ വെള്ളപ്പൊക്ക അപകടസാധ്യത',zone_wardT:'ടി നഗർ ഔട്ട്‌ഫാൾ',zone_wardN:'നുങ്കമ്പാക്കം ചാനൽ',zone_wardA:'അടയാർ സംഗമം',zone_wardV:'വെളച്ചേരി ബേസിൻ',zone_wardP:'പെരുങ്ങുടി താഴ്ന്ന പ്രദേശം',zone_normal:'സാധാരണ ഡ്രെയിനേജ് ഒഴുക്ക്',zone_rising:'ജലനിരപ്പ് ഉയരുന്നു — നിരീക്ഷിക്കുക'},
+  or:{status_areas:'ନଜର ରଖାଯାଉଥିବା ଅଞ୍ଚଳ',risk_low:'କମ୍',risk_moderate:'ମଧ୍ୟମ',risk_high:'ଅଧିକ',risk_low_desc:'ଆଗାମୀ କିଛି ଘଣ୍ଟାରେ ବନ୍ୟା ଆଶା କରାଯାଉନାହିଁ।',risk_moderate_desc:'କିଛି ଅଞ୍ଚଳରେ ଜଳସ୍ତର ବଢ଼ିପାରେ। ତଳିଆ ଅଞ୍ଚଳ ଏଡ଼ାନ୍ତୁ।',risk_high_desc:'ତଳେ ଚିହ୍ନିତ ଅଞ୍ଚଳରେ ବନ୍ୟା ସମ୍ଭାବନା ଅଛି। ସେଠାକୁ ଯାଆନ୍ତୁ ନାହିଁ।',status_city_risk:'ସହର ବନ୍ୟା ବିପଦ',zone_wardT:'ଟି ନଗର ଆଉଟଫଲ୍',zone_wardN:'ନୁଙ୍ଗମ୍ବାକ୍କମ୍ ଚ୍ୟାନେଲ୍',zone_wardA:'ଆଦୟାର ସଙ୍ଗମ',zone_wardV:'ଭେଲାଚେରୀ ବେସିନ୍',zone_wardP:'ପେରୁଙ୍ଗୁଡି ତଳିଆ ଅଞ୍ଚଳ',zone_normal:'ସାଧାରଣ ଡ୍ରେନେଜ୍ ପ୍ରବାହ',zone_rising:'ଜଳସ୍ତର ବଢ଼ୁଛି — ନଜର ରଖନ୍ତୁ'},
+  pa:{status_areas:'ਨਿਗਰਾਨੀ ਹੇਠ ਖੇਤਰ',risk_low:'ਘੱਟ',risk_moderate:'ਦਰਮਿਆਨਾ',risk_high:'ਉੱਚਾ',risk_low_desc:'ਅਗਲੇ ਕੁਝ ਘੰਟਿਆਂ ਵਿੱਚ ਹੜ੍ਹ ਦੀ ਉਮੀਦ ਨਹੀਂ।',risk_moderate_desc:'ਕੁਝ ਖੇਤਰਾਂ ਵਿੱਚ ਪਾਣੀ ਵੱਧ ਸਕਦਾ ਹੈ। ਨੀਵੇਂ ਖੇਤਰਾਂ ਤੋਂ ਬਚੋ।',risk_high_desc:'ਹੇਠਾਂ ਦਰਸਾਏ ਖੇਤਰਾਂ ਵਿੱਚ ਹੜ੍ਹ ਆਉਣ ਦੀ ਸੰਭਾਵਨਾ ਹੈ। ਉੱਥੇ ਜਾਣ ਤੋਂ ਬਚੋ।',status_city_risk:'ਸ਼ਹਿਰ ਵਿੱਚ ਹੜ੍ਹ ਦਾ ਖਤਰਾ',zone_wardT:'ਟੀ ਨਗਰ ਆਊਟਫਾਲ',zone_wardN:'ਨੁੰਗਮਬੱਕਮ ਚੈਨਲ',zone_wardA:'ਅਡਿਆਰ ਸੰਗਮ',zone_wardV:'ਵੇਲਾਚੇਰੀ ਬੇਸਿਨ',zone_wardP:'ਪੇਰੁੰਗੁਡੀ ਨੀਵਾਂ ਖੇਤਰ',zone_normal:'ਆਮ ਡਰੇਨੇਜ ਵਹਾਅ',zone_rising:'ਪਾਣੀ ਦਾ ਪੱਧਰ ਵੱਧ ਰਿਹਾ ਹੈ — ਨਿਗਰਾਨੀ ਕਰੋ'}
+};
+Object.keys(statusTranslations).forEach(function(lang){
+  Object.assign(i18n[lang], statusTranslations[lang]);
+});
+const statusExtraTranslations = {
+  as:{status_areas:'নিৰীক্ষণ কৰা অঞ্চলসমূহ',risk_low:'কম',risk_moderate:'মধ্যম',risk_high:'বেছি',risk_low_desc:'আগন্তুক কেইঘণ্টামানত বানপানীৰ সম্ভাৱনা নাই।',risk_moderate_desc:'কিছুমান অঞ্চলত পানী বাঢ়িব পাৰে। নিম্নভূমি এৰক।',risk_high_desc:'তলত চিহ্নিত অঞ্চলত বানপানীৰ সম্ভাৱনা আছে।',status_city_risk:'চহৰৰ বান বিপদ',zone_wardT:'টি নগৰ আউটফল',zone_wardN:'নুংগামবাক্কম চেনেল',zone_wardA:'আদিয়াৰ সংগম',zone_wardV:'ভেলাচেৰী বেচিন',zone_wardP:'পেৰুংগুড়ি নিম্নভূমি',zone_normal:'স্বাভাৱিক নিষ্কাশন প্ৰবাহ',zone_rising:'পানীৰ স্তৰ বাঢ়িছে — নিৰীক্ষণ কৰক'},
+  mai:{status_areas:'निगरानीमे रहल क्षेत्र',risk_low:'कम',risk_moderate:'मध्यम',risk_high:'बेसी',risk_low_desc:'आगामी किछु घंटामे बाढ़िक संभावना नहि अछि।',risk_moderate_desc:'किछु क्षेत्रमे पानि बढ़ि सकैत अछि। नीचाँ क्षेत्र सँ बचू।',risk_high_desc:'नीचाँ चिन्हित क्षेत्रमे बाढ़िक संभावना अछि।',status_city_risk:'शहरमे बाढ़िक खतरा',zone_wardT:'टी नगर आउटफॉल',zone_wardN:'नुंगमबक्कम चैनल',zone_wardA:'अडयार संगम',zone_wardV:'वेलाचेरी बेसिन',zone_wardP:'पेरुंगुडी नीचाँ क्षेत्र',zone_normal:'सामान्य जल निकासी',zone_rising:'पानिक स्तर बढ़ि रहल अछि — निगरानी करू'},
+  sa:{status_areas:'निरीक्षणाधीन क्षेत्राणि',risk_low:'अल्पम्',risk_moderate:'मध्यमम्',risk_high:'उच्चम्',risk_low_desc:'आगामिषु कतिपय होरासु जलप्लावनस्य संभावना नास्ति।',risk_moderate_desc:'केषुचित् क्षेत्रेषु जलस्तरः वर्धेत। नीचैः क्षेत्रैः परिहरन्तु।',risk_high_desc:'अधोलिखितेषु क्षेत्रेषु जलप्लावनस्य संभावना अस्ति।',status_city_risk:'नगरस्य जलप्लावनभयम्',zone_wardT:'टी-नगर बहिर्वाहः',zone_wardN:'नुङ्गम्बाक्कम् वाहिनी',zone_wardA:'अडयार संगमः',zone_wardV:'वेलाचेरी क्षेत्रम्',zone_wardP:'पेरुङ्गुडी निम्नभूमिः',zone_normal:'सामान्यः जलनिर्गमः',zone_rising:'जलस्तरः वर्धते — निरीक्षताम्'},
+  ks:{status_areas:'نِگہداشت منز علاقہ',risk_low:'کم',risk_moderate:'درمیانہ',risk_high:'زیادہ',risk_low_desc:'اَگلے کَتھ گھنٹن منز سیلاب ہُند خطرہٕ چھُ نہٕ۔',risk_moderate_desc:'کینہہ علاقن منز پانی وَدِتھ ہیکہٕ۔ نیچۍ جاے ژٕٹھیو۔',risk_high_desc:'تھلے نشان دِتھ علاقن منز سیلاب ہُند امکان چھُ۔',status_city_risk:'شہرچ سیلاب خطرہ',zone_wardT:'ٹی نگر آؤٹ فال',zone_wardN:'نُنگمباکم چینل',zone_wardA:'ادیار سنگم',zone_wardV:'ویلاچیری بیسن',zone_wardP:'پیرنگوڈی نیچۍ علاقہ',zone_normal:'معمول نکاسی آب',zone_rising:'پانی ہُند سطح وَدِتھ چھُ — نِگہداشت کریو'},
+  ne:{status_areas:'अनुगमन गरिएका क्षेत्रहरू',risk_low:'कम',risk_moderate:'मध्यम',risk_high:'उच्च',risk_low_desc:'आगामी केही घण्टामा बाढीको अपेक्षा छैन।',risk_moderate_desc:'केही क्षेत्रमा पानी बढ्न सक्छ। होचा ठाउँबाट बच्नुहोस्।',risk_high_desc:'तल चिन्ह लगाइएका क्षेत्रमा बाढीको सम्भावना छ।',status_city_risk:'शहरको बाढी जोखिम',zone_wardT:'टी नगर आउटफल',zone_wardN:'नुङ्गमबक्कम च्यानल',zone_wardA:'अड्यार संगम',zone_wardV:'वेलाचेरी बेसिन',zone_wardP:'पेरुङ्गुडी होचो क्षेत्र',zone_normal:'सामान्य निकास प्रवाह',zone_rising:'पानीको सतह बढ्दैछ — निगरानी गर्नुहोस्'},
+  kok:{status_areas:'नदर दवरिल्ले भाग',risk_low:'उणें',risk_moderate:'मध्यम',risk_high:'चड',risk_low_desc:'फुडल्या कायत्या वरसांनी पुर येवचो ना।',risk_moderate_desc:'कित्याक भागांनी उदक वाडूंक शकता। सखल भाग टाळात।',risk_high_desc:'सकयल दाखयल्ल्या भागांनी पुर येवपाची शक्यताय आसा।',status_city_risk:'शारांतलो पुराचो धोको',zone_wardT:'टी नगर आउटफॉल',zone_wardN:'नुंगमबक्कम चॅनेल',zone_wardA:'अडयार संगम',zone_wardV:'वेळचेरी बेसिन',zone_wardP:'पेरुंगुडी सखल भाग',zone_normal:'सादारण निचरो',zone_rising:'उदकाचें पातळ वाडटा — नदर दवरात'},
+  sd:{status_areas:'نگراني هيٺ علائقا',risk_low:'گهٽ',risk_moderate:'وچولو',risk_high:'وڌيڪ',risk_low_desc:'ايندڙ ڪجهه ڪلاڪن ۾ ٻوڏ جي اميد ناهي۔',risk_moderate_desc:'ڪجهه علائقن ۾ پاڻي وڌي سگهي ٿو۔ هيٺاهين علائقن کان بچو۔',risk_high_desc:'هيٺ نشان لڳل علائقن ۾ ٻوڏ جو امڪان آهي۔',status_city_risk:'شهر ۾ ٻوڏ جو خطرو',zone_wardT:'ٽي نگر آئوٽ فال',zone_wardN:'ننگمباڪم چينل',zone_wardA:'اديار سنگم',zone_wardV:'ويلاچيري بيسن',zone_wardP:'پيرونگودي هيٺاهون علائقو',zone_normal:'عام نيڪال جو وهڪرو',zone_rising:'پاڻي جي سطح وڌي رهي آهي — نگراني ڪريو'},
+  doi:{status_areas:'निगरानी आह्‌ले इलाके',risk_low:'घट्ट',risk_moderate:'दरम्याना',risk_high:'बड्डा',risk_low_desc:'अगले किश घंटे च हड़ दी उम्मीद नेईं।',risk_moderate_desc:'किश इलाकें च पानी बधी सकदा ऐ। नीमे इलाकें थमां बचो।',risk_high_desc:'थल्लै निशान लाए इलाकें च हड़ दा खतरा ऐ।',status_city_risk:'शैहरे च हड़ दा खतरा',zone_wardT:'टी नगर आउटफॉल',zone_wardN:'नुंगमबक्कम चैनल',zone_wardA:'अड्यार संगम',zone_wardV:'वेलाचेरी बेसिन',zone_wardP:'पेरुंगुडी नीमा इलाका',zone_normal:'साधारण निकासी बहाव',zone_rising:'पानी दा स्तर बधदा ऐ — निगरानी करो'},
+  mni:{status_areas:'শেন্দাং লৈবা মফমশিং',risk_low:'পীক্না',risk_moderate:'ময়াম',risk_high:'য়াম্বা',risk_low_desc:'মথংগী মতমদা ইসিং চুবা য়াদবা।',risk_moderate_desc:'মফম খরদা ইসিং থোকপা য়াই।',risk_high_desc:'মখাদা উত্লিবা মফমশিংদা ইসিং চুবা য়াই।',status_city_risk:'সহরদা ইসিং চুবগী থীনা',zone_wardT:'টি নগর আউটফল',zone_wardN:'নুংগমবাক্কম চেনেল',zone_wardA:'অদিয়ার সঙ্গম',zone_wardV:'ভেলাচেরী বেসিন',zone_wardP:'পেরুংগুড়ি নীচা মফম',zone_normal:'শেমদোকপগী সাধারণ থোকপা',zone_rising:'ইশিংগী মখল হেন্না থোক্লি — উশিল্লু'},
+  sat:{status_areas:'নজর রখা এলাকা',risk_low:'কম',risk_moderate:'মাঝারি',risk_high:'বেশি',risk_low_desc:'আগামী কয় ঘণ্টায় বন্যা নাই।',risk_moderate_desc:'কিছু জায়গায় জল বাড়তে পারে। নিচু জায়গা এড়াও।',risk_high_desc:'নিচে চিহ্নিত জায়গায় বন্যা হতে পারে।',status_city_risk:'নগর বন্যা বিপদ',zone_wardT:'টি নগর আউটফল',zone_wardN:'নুঙ্গামবাক্কাম চ্যানেল',zone_wardA:'আদয়ার সঙ্গম',zone_wardV:'ভেলাচেরী বেসিন',zone_wardP:'পেরুঙ্গুড়ি নিচু এলাকা',zone_normal:'সাধারণ জল নিকাশ',zone_rising:'জল বাড়ছে — নজর রাখাও'},
+  brx:{status_areas:'निगारानि खालामनाय जायगाफोर',risk_low:'फिसा',risk_moderate:'गेजेर',risk_high:'गोजौ',risk_low_desc:'फैनजाथि घन्टाफोराव बान्दि जाबाय नङा।',risk_moderate_desc:'मोनसेफोर जायगायाव इशिंग बांसिन जाबाय।',risk_high_desc:'सिगां दिन्थिनाय जायगाफोराव बान्दि जाबाय।',status_city_risk:'सहरनि बान्दि खतरा',zone_wardT:'टि नगर आउटफल',zone_wardN:'नुंगामबाक्काम चेनल',zone_wardA:'आडियार संगम',zone_wardV:'भेलाचेरी बेसिन',zone_wardP:'पेरुंगुडी सोरगोन जायगा',zone_normal:'साधारण ड्रेनेज फ्लो',zone_rising:'इशिंगनि स्तर बारबाय — निगारानि खालाम'}
+};
+Object.keys(statusExtraTranslations).forEach(function(lang){
+  Object.assign(i18n[lang], statusExtraTranslations[lang]);
+});
+const statusPageText = {
+  bn:{status_title:'শহরের অবস্থা',status_sub:'বৃষ্টি ও ড্রেনেজ সেন্সর থেকে আপডেট করা এলাকার বন্যার ঝুঁকি।'},
+  te:{status_title:'నగర స్థితి',status_sub:'వర్షపాతం మరియు డ్రైనేజీ సెన్సర్ల ఆధారంగా ప్రాంతాల వారీగా వరద ప్రమాదం.'},
+  mr:{status_title:'शहराची स्थिती',status_sub:'पाऊस आणि निचरा सेन्सरवरून अपडेट केलेला भागनिहाय पूर धोका.'},
+  ta:{status_title:'நகர நிலை',status_sub:'மழை மற்றும் வடிகால் சென்சார்களிலிருந்து புதுப்பிக்கப்பட்ட பகுதி வாரியான வெள்ள ஆபத்து.'},
+  ur:{status_title:'شہر کی صورتحال',status_sub:'بارش اور نکاسی آب کے سینسرز سے اپ ڈیٹ کیا گیا علاقے کے لحاظ سے سیلاب کا خطرہ۔'},
+  gu:{status_title:'શહેરની સ્થિતિ',status_sub:'વરસાદ અને ડ્રેનેજ સેન્સરથી અપડેટ થયેલું વિસ્તારવાર પૂરનું જોખમ.'},
+  kn:{status_title:'ನಗರದ ಸ್ಥಿತಿ',status_sub:'ಮಳೆ ಮತ್ತು ಚರಂಡಿ ಸೆನ್ಸರ್‌ಗಳಿಂದ ನವೀಕರಿಸಿದ ಪ್ರದೇಶವಾರು ಪ್ರವಾಹ ಅಪಾಯ.'},
+  ml:{status_title:'നഗര സ്ഥിതി',status_sub:'മഴയും ഡ്രെയിനേജ് സെൻസറുകളും അടിസ്ഥാനമാക്കി പുതുക്കിയ പ്രദേശങ്ങളിലെ വെള്ളപ്പൊക്ക അപകടസാധ്യത.'},
+  or:{status_title:'ସହରର ସ୍ଥିତି',status_sub:'ବର୍ଷା ଏବଂ ଡ୍ରେନେଜ୍ ସେନ୍ସରରୁ ଅପଡେଟ୍ ହୋଇଥିବା ଅଞ୍ଚଳ ଅନୁଯାୟୀ ବନ୍ୟା ବିପଦ।'},
+  pa:{status_title:'ਸ਼ਹਿਰ ਦੀ ਸਥਿਤੀ',status_sub:'ਮੀਂਹ ਅਤੇ ਡਰੇਨੇਜ ਸੈਂਸਰਾਂ ਤੋਂ ਅਪਡੇਟ ਕੀਤਾ ਖੇਤਰਵਾਰ ਹੜ੍ਹ ਦਾ ਖਤਰਾ।'},
+  as:{status_title:'চহৰৰ অৱস্থা',status_sub:'বৰষুণ আৰু নিষ্কাশন চেন্সৰৰ পৰা আপডেট কৰা অঞ্চলভিত্তিক বানপানীৰ বিপদ।'},
+  mai:{status_title:'शहरक स्थिति',status_sub:'वर्षा आ जल निकासी सेंसर सँ अपडेट भेल क्षेत्रवार बाढ़िक खतरा।'},
+  sa:{status_title:'नगरस्य स्थितिः',status_sub:'वृष्टि-जलनिर्गम-संवेदकैः अद्यतनं क्षेत्रानुसारं जलप्लावनभयम्।'},
+  ks:{status_title:'شہرچ حالت',status_sub:'بارش تہٕ نکاسی آب سینسرن سۭتۍ اپڈیٹ کٔرتھ علاقہٕ وار سیلاب خطرہٕ۔'},
+  ne:{status_title:'शहरको स्थिति',status_sub:'वर्षा र निकास सेन्सरबाट अद्यावधिक गरिएको क्षेत्रगत बाढी जोखिम।'},
+  kok:{status_title:'शारांतली स्थिती',status_sub:'पावस आनी निचरा सेंसरांनी अद्ययावत केल्लो भागां भागांचो पुराचो धोको.'},
+  sd:{status_title:'شهر جي حالت',status_sub:'برسات ۽ نيڪال جي سينسرن مان اپڊيٽ ڪيل علائقائي ٻوڏ جو خطرو.'},
+  doi:{status_title:'शैहरे दी हालत',status_sub:'बरखा ते निकासी सेंसरें थमां अपडेट कीता गेदा इलाके मताबक हड़ दा खतरा।'},
+  mni:{status_title:'সহরগী মতাং',status_sub:'নুমিত্ত অমসুং ড্রেনেজ সেন্সরগী মতমদা মফমগী ইসিং চুবগী থীনা।'},
+  sat:{status_title:'নগর রেয়াক্ হালাত',status_sub:'গাজ আর জল নিকাশ সেন্সর থিকায় এলাকা অনুযায়ী বন্যা বিপদ।'},
+  brx:{status_title:'सहरनि दशा',status_sub:'बर्खा आरो ड्रेनेज सेन्सरफोरनि अपडेट जों जायगानि बान्दि खतरा।'}
+};
+Object.keys(statusPageText).forEach(function(lang){
+  Object.assign(i18n[lang], statusPageText[lang]);
+});
+const accountTranslations = {
+  en:{logout:'Log out',role_admin:'Admin',role_staff:'Field ops',role_citizen:'Resident'},
+  hi:{logout:'लॉग आउट',role_admin:'एडमिन',role_staff:'फील्ड ऑप्स',role_citizen:'निवासी'},
+  bn:{logout:'লগ আউট',role_admin:'অ্যাডমিন',role_staff:'ফিল্ড অপারেশন',role_citizen:'বাসিন্দা'},
+  te:{logout:'లాగ్ అవుట్',role_admin:'అడ్మిన్',role_staff:'ఫీల్డ్ ఆప్స్',role_citizen:'నివాసి'},
+  mr:{logout:'लॉग आउट',role_admin:'प्रशासक',role_staff:'फील्ड ऑप्स',role_citizen:'रहिवासी'},
+  ta:{logout:'வெளியேறு',role_admin:'நிர்வாகி',role_staff:'களப் பணி',role_citizen:'குடியிருப்பாளர்'},
+  ur:{logout:'لاگ آؤٹ',role_admin:'ایڈمن',role_staff:'فیلڈ آپریشنز',role_citizen:'رہائشی'},
+  gu:{logout:'લૉગ આઉટ',role_admin:'એડમિન',role_staff:'ફિલ્ડ ઓપ્સ',role_citizen:'રહેવાસી'},
+  kn:{logout:'ಲಾಗ್ ಔಟ್',role_admin:'ನಿರ್ವಾಹಕ',role_staff:'ಫೀಲ್ಡ್ ಆಪ್ಸ್',role_citizen:'ನಿವಾಸಿ'},
+  ml:{logout:'ലോഗ് ഔട്ട്',role_admin:'അഡ്മിൻ',role_staff:'ഫീൽഡ് ഓപ്സ്',role_citizen:'താമസക്കാരൻ'},
+  or:{logout:'ଲଗ୍ ଆଉଟ୍',role_admin:'ଆଡମିନ୍',role_staff:'ଫିଲ୍ଡ ଅପ୍ସ',role_citizen:'ବାସିନ୍ଦା'},
+  pa:{logout:'ਲੌਗ ਆਊਟ',role_admin:'ਐਡਮਿਨ',role_staff:'ਫੀਲਡ ਓਪਸ',role_citizen:'ਵਸਨੀਕ'},
+  as:{logout:'লগ আউট',role_admin:'এডমিন',role_staff:'ফিল্ড অপাৰেচন',role_citizen:'বাসিন্দা'},
+  mai:{logout:'लॉग आउट',role_admin:'एडमिन',role_staff:'फील्ड ऑप्स',role_citizen:'बासिन्दा'},
+  sa:{logout:'निर्गच्छतु',role_admin:'प्रशासकः',role_staff:'क्षेत्रीयकार्य',role_citizen:'निवासी'},
+  ks:{logout:'لاگ آؤٹ',role_admin:'ایڈمن',role_staff:'فیلڈ آپریشنز',role_citizen:'رہن وٲلۍ'},
+  ne:{logout:'लग आउट',role_admin:'व्यवस्थापक',role_staff:'फिल्ड अप्स',role_citizen:'बासिन्दा'},
+  kok:{logout:'लॉग आउट',role_admin:'अॅडमिन',role_staff:'फिल्ड ऑप्स',role_citizen:'रावपी'},
+  sd:{logout:'لاگ آئوٽ',role_admin:'ايڊمن',role_staff:'فيلڊ آپس',role_citizen:'رهواسي'},
+  doi:{logout:'लॉग आउट',role_admin:'ऐडमिन',role_staff:'फील्ड ऑप्स',role_citizen:'बसनीक'},
+  mni:{logout:'লগ আউট',role_admin:'এডমিন',role_staff:'ফিল্ড অপ্স',role_citizen:'লৈবসী'},
+  sat:{logout:'লগ্ আউট',role_admin:'এডমিন',role_staff:'ফিল্ড অপ্স',role_citizen:'বাসিন্দা'},
+  brx:{logout:'लग आउट',role_admin:'एडमिन',role_staff:'फिल्ड अप्स',role_citizen:'हाबासि'}
+};
+Object.keys(accountTranslations).forEach(function(lang){
+  Object.assign(i18n[lang], accountTranslations[lang]);
+});
+const brandTranslations = {
+  en:'FlowNet',hi:'फ्लोनेट',bn:'ফ্লোনেট',te:'ఫ్లోనెట్',mr:'फ्लोनेट',ta:'ஃப்ளோநெட்',ur:'فلونیٹ',gu:'ફ્લોનેટ',kn:'ಫ್ಲೋನೆಟ್',ml:'ഫ്ലോനെറ്റ്',or:'ଫ୍ଲୋନେଟ',pa:'ਫਲੋਨੈੱਟ',as:'ফ্ল’নেট',mai:'फ्लोनेट',sa:'फ्लोनेटम्',ks:'فلو نیٹ',ne:'फ्लोनेट',kok:'फ्लोनेट',sd:'فلو نيٽ',doi:'फ्लोनेट',mni:'ফ্লোনেট',sat:'ᱯᱷᱞᱳᱱᱮᱴ',brx:'फ्लोनेट'
+};
+Object.keys(brandTranslations).forEach(function(lang){
+  i18n[lang].brand_name = brandTranslations[lang];
+});
+const authTranslations = {
+  en:{auth_signin:'Sign in',auth_desc:'You need an account to use FlowNet. Sign in to report issues, track tickets and — if you are municipal staff — open the operations view.',auth_username:'Username',auth_username_placeholder:'e.g. admin',auth_password:'Password',auth_show_password:'Show password',auth_no_account:"Don't have an account?",auth_create:'Create one'},
+  hi:{auth_signin:'साइन इन',auth_desc:'FlowNet का उपयोग करने के लिए खाते की आवश्यकता है। समस्याएँ दर्ज करने और टिकट ट्रैक करने के लिए साइन इन करें।',auth_username:'उपयोगकर्ता नाम',auth_username_placeholder:'जैसे admin',auth_password:'पासवर्ड',auth_show_password:'पासवर्ड दिखाएँ',auth_no_account:'खाता नहीं है?',auth_create:'खाता बनाएँ'},
+  bn:{auth_signin:'সাইন ইন',auth_desc:'FlowNet ব্যবহার করতে একটি অ্যাকাউন্ট প্রয়োজন। সমস্যা রিপোর্ট ও টিকিট ট্র্যাক করতে সাইন ইন করুন।',auth_username:'ব্যবহারকারীর নাম',auth_username_placeholder:'যেমন admin',auth_password:'পাসওয়ার্ড',auth_show_password:'পাসওয়ার্ড দেখান',auth_no_account:'অ্যাকাউন্ট নেই?',auth_create:'অ্যাকাউন্ট তৈরি করুন'},
+  te:{auth_signin:'సైన్ ఇన్',auth_desc:'FlowNet ఉపయోగించడానికి ఖాతా అవసరం. సమస్యలను నివేదించడానికి మరియు టికెట్లను ట్రాక్ చేయడానికి సైన్ ఇన్ చేయండి.',auth_username:'వినియోగదారు పేరు',auth_username_placeholder:'ఉదా. admin',auth_password:'పాస్‌వర్డ్',auth_show_password:'పాస్‌వర్డ్ చూపించు',auth_no_account:'ఖాతా లేదా?',auth_create:'ఖాతా సృష్టించండి'},
+  mr:{auth_signin:'साइन इन',auth_desc:'FlowNet वापरण्यासाठी खाते आवश्यक आहे. समस्या नोंदवण्यासाठी आणि तिकिटे ट्रॅक करण्यासाठी साइन इन करा.',auth_username:'वापरकर्तानाव',auth_username_placeholder:'उदा. admin',auth_password:'पासवर्ड',auth_show_password:'पासवर्ड दाखवा',auth_no_account:'खाते नाही?',auth_create:'खाते तयार करा'},
+  ta:{auth_signin:'உள்நுழைக',auth_desc:'FlowNet பயன்படுத்த கணக்கு தேவை. சிக்கல்களைப் புகாரளிக்கவும் டிக்கெட்டுகளைக் கண்காணிக்கவும் உள்நுழையுங்கள்.',auth_username:'பயனர் பெயர்',auth_username_placeholder:'எ.கா. admin',auth_password:'கடவுச்சொல்',auth_show_password:'கடவுச்சொல்லைக் காட்டு',auth_no_account:'கணக்கு இல்லையா?',auth_create:'கணக்கை உருவாக்கு'},
+  ur:{auth_signin:'سائن اِن',auth_desc:'FlowNet استعمال کرنے کے لیے اکاؤنٹ ضروری ہے۔ مسائل رپورٹ کرنے اور ٹکٹ ٹریک کرنے کے لیے سائن اِن کریں۔',auth_username:'صارف نام',auth_username_placeholder:'مثلاً admin',auth_password:'پاس ورڈ',auth_show_password:'پاس ورڈ دکھائیں',auth_no_account:'اکاؤنٹ نہیں ہے؟',auth_create:'اکاؤنٹ بنائیں'},
+  gu:{auth_signin:'સાઇન ઇન',auth_desc:'FlowNet વાપરવા માટે ખાતું જરૂરી છે. સમસ્યાઓની જાણ કરવા અને ટિકિટ ટ્રેક કરવા સાઇન ઇન કરો.',auth_username:'વપરાશકર્તા નામ',auth_username_placeholder:'દા.ત. admin',auth_password:'પાસવર્ડ',auth_show_password:'પાસવર્ડ બતાવો',auth_no_account:'ખાતું નથી?',auth_create:'ખાતું બનાવો'},
+  kn:{auth_signin:'ಸೈನ್ ಇನ್',auth_desc:'FlowNet ಬಳಸಲು ಖಾತೆ ಅಗತ್ಯವಿದೆ. ಸಮಸ್ಯೆಗಳನ್ನು ವರದಿ ಮಾಡಲು ಮತ್ತು ಟಿಕೆಟ್‌ಗಳನ್ನು ಟ್ರ್ಯಾಕ್ ಮಾಡಲು ಸೈನ್ ಇನ್ ಮಾಡಿ.',auth_username:'ಬಳಕೆದಾರ ಹೆಸರು',auth_username_placeholder:'ಉದಾ. admin',auth_password:'ಪಾಸ್‌ವರ್ಡ್',auth_show_password:'ಪಾಸ್‌ವರ್ಡ್ ತೋರಿಸಿ',auth_no_account:'ಖಾತೆ ಇಲ್ಲವೇ?',auth_create:'ಖಾತೆ ರಚಿಸಿ'},
+  ml:{auth_signin:'സൈൻ ഇൻ',auth_desc:'FlowNet ഉപയോഗിക്കാൻ അക്കൗണ്ട് ആവശ്യമാണ്. പ്രശ്നങ്ങൾ റിപ്പോർട്ട് ചെയ്യാനും ടിക്കറ്റുകൾ ട്രാക്ക് ചെയ്യാനും സൈൻ ഇൻ ചെയ്യുക.',auth_username:'ഉപയോക്തൃനാമം',auth_username_placeholder:'ഉദാ. admin',auth_password:'പാസ്‌വേഡ്',auth_show_password:'പാസ്‌വേഡ് കാണിക്കുക',auth_no_account:'അക്കൗണ്ട് ഇല്ലേ?',auth_create:'അക്കൗണ്ട് സൃഷ്ടിക്കുക'},
+  or:{auth_signin:'ସାଇନ୍ ଇନ୍',auth_desc:'FlowNet ବ୍ୟବହାର କରିବାକୁ ଏକ ଖାତା ଆବଶ୍ୟକ। ସମସ୍ୟା ରିପୋର୍ଟ ଏବଂ ଟିକେଟ୍ ଟ୍ରାକ୍ କରିବାକୁ ସାଇନ୍ ଇନ୍ କରନ୍ତୁ।',auth_username:'ବ୍ୟବହାରକାରୀ ନାମ',auth_username_placeholder:'ଉଦାହରଣ admin',auth_password:'ପାସୱାର୍ଡ',auth_show_password:'ପାସୱାର୍ଡ ଦେଖାନ୍ତୁ',auth_no_account:'ଖାତା ନାହିଁ?',auth_create:'ଖାତା ତିଆରି କରନ୍ତୁ'},
+  pa:{auth_signin:'ਸਾਈਨ ਇਨ',auth_desc:'FlowNet ਵਰਤਣ ਲਈ ਖਾਤਾ ਲੋੜੀਂਦਾ ਹੈ। ਸਮੱਸਿਆਵਾਂ ਦੀ ਰਿਪੋਰਟ ਅਤੇ ਟਿਕਟ ਟ੍ਰੈਕ ਕਰਨ ਲਈ ਸਾਈਨ ਇਨ ਕਰੋ।',auth_username:'ਵਰਤੋਂਕਾਰ ਨਾਮ',auth_username_placeholder:'ਜਿਵੇਂ admin',auth_password:'ਪਾਸਵਰਡ',auth_show_password:'ਪਾਸਵਰਡ ਦਿਖਾਓ',auth_no_account:'ਖਾਤਾ ਨਹੀਂ ਹੈ?',auth_create:'ਖਾਤਾ ਬਣਾਓ'},
+  as:{auth_signin:'ছাইন ইন',auth_desc:'FlowNet ব্যৱহাৰ কৰিবলৈ একাউণ্টৰ প্ৰয়োজন। সমস্যা প্ৰতিবেদন আৰু টিকট ট্ৰেক কৰিবলৈ ছাইন ইন কৰক।',auth_username:'ব্যৱহাৰকাৰীৰ নাম',auth_username_placeholder:'যেনে admin',auth_password:'পাছৱৰ্ড',auth_show_password:'পাছৱৰ্ড দেখুৱাওক',auth_no_account:'একাউণ্ট নাই?',auth_create:'একাউণ্ট সৃষ্টি কৰক'},
+  mai:{auth_signin:'साइन इन',auth_desc:'FlowNet उपयोग करबाक लेल खाता जरूरी अछि। समस्या रिपोर्ट आ टिकट ट्रैक करबाक लेल साइन इन करू।',auth_username:'उपयोगकर्ता नाम',auth_username_placeholder:'जैसे admin',auth_password:'पासवर्ड',auth_show_password:'पासवर्ड देखाउ',auth_no_account:'खाता नहि अछि?',auth_create:'खाता बनाउ'},
+  sa:{auth_signin:'प्रविशतु',auth_desc:'FlowNet उपयोगाय खातम् आवश्यकम्। समस्याः निवेदयितुं टिकट् अनुसर्तुं च प्रविशतु।',auth_username:'उपयोक्तृनाम',auth_username_placeholder:'यथा admin',auth_password:'गुप्तशब्दः',auth_show_password:'गुप्तशब्दं दर्शयतु',auth_no_account:'खातं नास्ति?',auth_create:'खातं रचयतु'},
+  ks:{auth_signin:'سائن اِن',auth_desc:'FlowNet استعمال کرنہٕ خٲطرٕ اکاونٹ چھُ ضرورت۔ مسئلے رپورٹ تہٕ ٹکٹ ٹریک کرنہٕ خٲطرٕ سائن اِن کریو۔',auth_username:'یوزر نیم',auth_username_placeholder:'مثلاً admin',auth_password:'پاس ورڈ',auth_show_password:'پاس ورڈ وُچھِو',auth_no_account:'اکاؤنٹ چھُ نہٕ؟',auth_create:'اکاؤنٹ بناو'},
+  ne:{auth_signin:'साइन इन',auth_desc:'FlowNet प्रयोग गर्न खाता आवश्यक छ। समस्या रिपोर्ट गर्न र टिकट ट्र्याक गर्न साइन इन गर्नुहोस्।',auth_username:'प्रयोगकर्ता नाम',auth_username_placeholder:'जस्तै admin',auth_password:'पासवर्ड',auth_show_password:'पासवर्ड देखाउनुहोस्',auth_no_account:'खाता छैन?',auth_create:'खाता बनाउनुहोस्'},
+  kok:{auth_signin:'साइन इन',auth_desc:'FlowNet वापरपाक खातें जाय। समस्या कळोवपाक आनी तिकीट ट्रॅक करपाक साइन इन करात.',auth_username:'वापरप्याचें नांव',auth_username_placeholder:'देखीक admin',auth_password:'पासवर्ड',auth_show_password:'पासवर्ड दाखयात',auth_no_account:'खातें ना?',auth_create:'खातें करात'},
+  sd:{auth_signin:'سائن اِن',auth_desc:'FlowNet استعمال ڪرڻ لاءِ اڪائونٽ ضروري آهي. مسئلا رپورٽ ۽ ٽڪيٽ ٽريڪ ڪرڻ لاءِ سائن اِن ڪريو.',auth_username:'صارف نالو',auth_username_placeholder:'مثال admin',auth_password:'پاسورڊ',auth_show_password:'پاسورڊ ڏيکاريو',auth_no_account:'اڪائونٽ ناهي؟',auth_create:'اڪائونٽ ٺاهيو'},
+  doi:{auth_signin:'साइन इन',auth_desc:'FlowNet बरतने लेई खाता लोड़ींदा ऐ। समस्या रिपोर्ट ते टिकट ट्रैक करने लेई साइन इन करो।',auth_username:'बरतूनी नांऽ',auth_username_placeholder:'जियां admin',auth_password:'पासवर्ड',auth_show_password:'पासवर्ड दस्सो',auth_no_account:'खाता नेईं?',auth_create:'खाता बनाओ'},
+  mni:{auth_signin:'সাইন ইন',auth_desc:'FlowNet শিজিন্নবগীদমক একাউন্ট অমা দরকার। সমস্যাগী মতাং পীবা অমসুং টিকেট ট্রেক তৌনবা সাইন ইন তৌবিয়ু।',auth_username:'ইউজর মিং',auth_username_placeholder:'যেমন admin',auth_password:'পাসৱার্ড',auth_show_password:'পাসৱার্ড উত্লু',auth_no_account:'একাউন্ট লৈত্রা?',auth_create:'একাউন্ট শেম্মু'},
+  sat:{auth_signin:'সাইন ইন',auth_desc:'FlowNet বেনাও লাগিত খাতা দরকার। সমস্যা রিপোর্ট আর টিকেট ট্র্যাক লাগিত সাইন ইন করো।',auth_username:'ব্যবহারকারী নাম',auth_username_placeholder:'যেমন admin',auth_password:'পাসওয়ার্ড',auth_show_password:'পাসওয়ার্ড দেখাও',auth_no_account:'খাতা নাই?',auth_create:'খাতা বানাও'},
+  brx:{auth_signin:'साइन इन',auth_desc:'FlowNet बाहायनो थाखाय एकाउन्ट नांगौ। जेंना रिपोर्ट आरो टिकेत ट्रेक खालामनो साइन इन खालाम।',auth_username:'बाहायगिरिनि मुं',auth_username_placeholder:'बिदिनो admin',auth_password:'पासवर्ड',auth_show_password:'पासवर्ड दिन्थि',auth_no_account:'एकाउन्ट गैया?',auth_create:'एकाउन्ट साजाय'}
+};
+Object.keys(authTranslations).forEach(function(lang){
+  Object.assign(i18n[lang], authTranslations[lang]);
+});
+
+let activeLanguage = 'en';
+let workflowReady = false;
+function translate(key, fallback){
+  return (i18n[activeLanguage] && i18n[activeLanguage][key]) || i18n.en[key] || fallback || key;
+}
+
+function applyLanguage(lang){
+  const dict = i18n[lang] || i18n.en;
+  activeLanguage = i18n[lang] ? lang : 'en';
+  document.querySelectorAll('[data-i18n]').forEach(function(el){
+    const key = el.getAttribute('data-i18n');
+    if(dict[key]) el.textContent = dict[key];
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el){
+    const key = el.getAttribute('data-i18n-placeholder');
+    if(dict[key]) el.placeholder = dict[key];
+  });
+  try{ localStorage.setItem('flownetLang', lang); }catch(e){}
+  const roleElement = document.getElementById('acctRole');
+  if(roleElement && roleElement.dataset.role){
+    roleElement.textContent = translate('role_'+roleElement.dataset.role, roleElement.dataset.role);
+  }
+  if(workflowReady){
+    if(typeof renderIssueGrid === 'function') renderIssueGrid();
+    if(typeof renderSeverityList === 'function') renderSeverityList();
+    if(typeof renderProgress === 'function') renderProgress();
+    if(typeof renderReview === 'function' && wizardStep === 4) renderReview();
+    if(typeof renderRecentReports === 'function') renderRecentReports();
+    if(typeof renderAreaList === 'function') renderAreaList();
+    if(typeof refreshStatusBanner === 'function') refreshStatusBanner(currentRisk || 'safe');
+    if(typeof buildSimpleMap === 'function' && document.getElementById('statusMap')) buildSimpleMap(document.getElementById('statusMap'), 700, 320, { labels:true, clickable:true });
+  }
+}
+
+const langSelectEl = document.getElementById('langSelect');
+if(langSelectEl){
+  let savedLang = 'en';
+  try{ savedLang = localStorage.getItem('flownetLang') || 'en'; }catch(e){}
+  langSelectEl.value = savedLang;
+  applyLanguage(savedLang);
+  langSelectEl.addEventListener('change', function(){ applyLanguage(this.value); });
+}
+
+/* ---------------------------------------------------------------
+   DATA MODEL
+----------------------------------------------------------------*/
+const zones = [
+  { id:'wardT', name:'T Nagar Outfall',      points:'40,60 190,50 200,150 60,170',   risk:'safe', level:'0.6 m', flow:'Normal',   status:'Normal drainage flow' },
+  { id:'wardN', name:'Nungambakkam Channel', points:'210,40 360,50 350,160 220,160', risk:'safe', level:'0.8 m', flow:'Normal',   status:'Normal drainage flow' },
+  { id:'wardA', name:'Adyar Confluence',     points:'380,60 560,70 540,190 370,190', risk:'warn', level:'1.1 m', flow:'Elevated', status:'Water levels rising — monitor' },
+  { id:'wardV', name:'Velachery Basin',      points:'240,190 430,200 420,330 220,340',risk:'safe', level:'1.4 m', flow:'Rising',  status:'Normal drainage flow' },
+  { id:'wardP', name:'Perungudi Lowland',    points:'450,220 620,230 610,350 440,350',risk:'safe', level:'0.7 m', flow:'Normal',   status:'Normal drainage flow' }
+];
+
+const nodes = [
+  { id:'MH-004', type:'manhole', zone:'wardT', x:110, y:105, level:'0.5 m', flow:'2.1 m³/s', status:'Clear' },
+  { id:'SEN-002', type:'sensor',  zone:'wardN', x:290, y:100, level:'0.8 m', flow:'2.6 m³/s', status:'Clear' },
+  { id:'MH-011', type:'manhole', zone:'wardA', x:460, y:120, level:'1.1 m', flow:'3.4 m³/s', status:'Partial silt' },
+  { id:'MH-014', type:'manhole', zone:'wardV', x:300, y:250, level:'1.4 m', flow:'4.0 m³/s', status:'Blockage suspected' },
+  { id:'SEN-009', type:'sensor',  zone:'wardV', x:370, y:290, level:'1.3 m', flow:'3.9 m³/s', status:'Clear' },
+  { id:'MH-021', type:'manhole', zone:'wardP', x:520, y:280, level:'0.7 m', flow:'2.0 m³/s', status:'Clear' }
+];
+
+const inspectionLocations = [
+  { id:'MH-014', zoneName:'Velachery Basin', defect:'blockage', confidence:0.94, severity:'crit', note:'Debris accumulation, ~60% cross-section obstructed.' },
+  { id:'MH-011', zoneName:'Adyar Confluence', defect:'crack', confidence:0.78, severity:'warn', note:'Hairline crack along joint, seepage risk moderate.' },
+  { id:'MH-004', zoneName:'T Nagar Outfall', defect:'clear', confidence:0.97, severity:'safe', note:'No defects detected. Flow unobstructed.' },
+  { id:'MH-021', zoneName:'Perungudi Lowland', defect:'clear', confidence:0.90, severity:'safe', note:'No defects detected. Minor sediment, within tolerance.' }
+];
+
+const issueTypes = [
+  { id:'waterlogging', label:'Waterlogged road', icon:'M4 18c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2M4 12h16M6 7l1-2h10l1 2' },
+  { id:'blocked', label:'Blocked / overflowing drain', icon:'M4 6h16v6a8 8 0 01-16 0V6z M8 6V4h8v2' },
+  { id:'manhole', label:'Damaged manhole cover', icon:'M12 4a8 8 0 100 16 8 8 0 000-16z M12 8v8 M8 12h8' },
+  { id:'sewage', label:'Sewage overflow', icon:'M12 3s5 6 5 10a5 5 0 01-10 0c0-4 5-10 5-10z' },
+  { id:'other', label:'Something else', icon:'M12 18h.01 M12 6a3 3 0 00-3 3h2a1 1 0 112 0c0 1-2 1-2 3.5h2c0-1.5 2-2 2-3.5a3 3 0 00-3-3z' }
+];
+const severities = [
+  { id:'notice', title:'Just noticed it', desc:'Not urgent, log it for the crew.' },
+  { id:'worse', title:'Getting worse', desc:'Water is rising or spreading.' },
+  { id:'urgent', title:'Urgent', desc:'Water is entering homes or shops now.' }
+];
+workflowReady = true;
+
+let ticketSeq = 3;
+let tickets = [
+  { id:'FN-2026-0001', problem:'Waterlogged road', location:'Near Velachery bus depot, Velachery Basin', area:'wardV', priority:'med', team:'Ward 12 Field Crew', status:'Assigned', stage:2, source:'Citizen report', submitted:'Today, 07:20' },
+  { id:'FN-2026-0002', problem:'Blocked drain', location:'2nd Street, T Nagar Outfall', area:'wardT', priority:'low', team:'Ward 7 Sanitation', status:'Resolved', stage:3, source:'Citizen report', submitted:'Yesterday, 16:04' }
+];
+
+const stages = ['Submitted','Acknowledged','Assigned to team','Resolved'];
+const riskLabels = { safe:{label:'Low', desc:'No flooding expected in the next few hours.'}, warn:{label:'Moderate', desc:'Some areas may see rising water. Avoid low-lying spots.'}, crit:{label:'High', desc:'Flooding likely in the areas marked below. Avoid travel there.'} };
+
+/* ---------------------------------------------------------------
+   AUTH BACKGROUND VIDEO
+   Plays only while body.auth-gate is set (sign-in / sign-up) and pauses
+   everywhere else, so it costs no CPU/battery once you're inside the app.
+   - autoplay blocked / reduced-motion -> the poster frame simply stays
+   - file missing or broken            -> body.no-bg-video restores the
+                                          old grid + rain backdrop
+----------------------------------------------------------------*/
+const _authBg = document.getElementById('fxVideo');
+const _prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function syncAuthVideo(){
+  if(!_authBg) return;
+  const onAuth = document.body.classList.contains('auth-gate');
+  if(onAuth && !_prefersReduced){
+    const p = _authBg.play();
+    if(p && p.catch) p.catch(()=>{ /* autoplay blocked: poster stays visible */ });
+  } else {
+    _authBg.pause();
+  }
+}
+if(_authBg){
+  _authBg.muted = true;                                   // required for autoplay
+  _authBg.addEventListener('playing', ()=> _authBg.classList.add('ready'));
+  _authBg.addEventListener('error',   ()=> document.body.classList.add('no-bg-video'));
+  // the load can already have failed before this script ran (the <video> tag is
+  // parsed first), in which case the 'error' event was missed -> check it directly
+  if(_authBg.error) document.body.classList.add('no-bg-video');
+  syncAuthVideo();
+}
+
+/* ---------------------------------------------------------------
+   PAGE NAV  (auth-gated)
+
+   Nothing except the sign-in / sign-up pages can be opened until
+   currentUser is set. gotoPage() is the single choke point, so every
+   nav button, hero CTA and [data-goto] link is covered by one guard.
+----------------------------------------------------------------*/
+const PUBLIC_PAGES = ['login','signup'];          // reachable while signed out
+const STAFF_PAGES  = ['ops'];                     // reachable only by staff/admin
+const STAFF_ROLES  = ['staff','admin'];
+
+function isStaff(){ return !!currentUser && STAFF_ROLES.indexOf(currentUser.role) !== -1; }
+
+function gotoPage(name){
+  // ---- guard 1: signed out -> only the auth pages are reachable
+  if(!currentUser && PUBLIC_PAGES.indexOf(name) === -1){
+    name = 'login';
+  }
+  // ---- guard 2: signed in -> the auth pages are pointless, send them home
+  if(currentUser && PUBLIC_PAGES.indexOf(name) !== -1){
+    name = 'home';
+  }
+  // ---- guard 3: ops view is staff-only
+  if(STAFF_PAGES.indexOf(name) !== -1 && !isStaff()){
+    name = 'home';
+    alert('The operations view is restricted to municipal staff accounts.');
+  }
+
+  document.body.classList.toggle('auth-gate', PUBLIC_PAGES.indexOf(name) !== -1);
+  syncAuthVideo();
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active', p.id==='page-'+name));
+  document.querySelectorAll('.pub-nav button').forEach(b=>b.classList.toggle('active', b.dataset.page===name));
+  window.scrollTo({top:0, behavior:'instant' in window ? 'instant' : 'auto'});
+  if(name==='track') renderRecentTry();
+}
+
+document.getElementById('pubNav').addEventListener('click', e=>{
+  const b = e.target.closest('button[data-page]');
+  if(b) gotoPage(b.dataset.page);
+});
+document.querySelectorAll('[data-goto]').forEach(el=>{
+  el.addEventListener('click', ()=> {
+    if(el.dataset.goto==='report') resetWizard();
+    gotoPage(el.dataset.goto);
+  });
+});
+document.getElementById('headerCta').addEventListener('click', ()=>{ resetWizard(); gotoPage('report'); });
+document.getElementById('backToPublic').addEventListener('click', ()=> gotoPage('home'));
+
+/* ---------------------------------------------------------------
+   AUTHENTICATION  (sign in + sign up)
+
+   Primary path: POST /api/login and POST /api/signup on the FlowNet
+   ApiServer, which check / insert rows in the MySQL `users` table
+   (password stored as SHA2(password,256); a successful sign-in stamps
+   users.last_login). Open the page via http://localhost:8080/ so these
+   same-origin requests reach the server.
+
+   Fallback path: if the page is opened straight off the disk (file://)
+   or ApiServer is not running, the same rules are enforced locally
+   against a browser-side account store, so login and sign-up still work
+   end to end for a demo. The banner on the form says which mode is live.
+----------------------------------------------------------------*/
+let currentUser = null;
+
+const STAFF_ACCESS_CODE = 'FLOWNET-STAFF-2026';
+const ROLE_LABEL = { citizen:'Resident', staff:'Field ops', admin:'Admin' };
+const SESSION_KEY = 'flownet.session';
+const LOCAL_USERS_KEY = 'flownet.localUsers';
+
+/* ---------- shared validation rules (mirrored server-side) ---------- */
+const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+
+function validateUsername(u){
+  if(!u) return 'Enter a username.';
+  if(u.length < 3) return 'Username must be at least 3 characters.';
+  if(u.length > 20) return 'Username must be 20 characters or fewer.';
+  if(!USERNAME_RE.test(u)) return 'Use only letters, numbers and underscores.';
+  return null;
+}
+function validatePassword(p){
+  if(!p) return 'Enter a password.';
+  if(p.length < 6) return 'Password must be at least 6 characters.';
+  if(p.length > 64) return 'Password must be 64 characters or fewer.';
+  if(!/[A-Za-z]/.test(p)) return 'Password must contain at least one letter.';
+  if(!/[0-9]/.test(p)) return 'Password must contain at least one number.';
+  return null;
+}
+function passwordScore(p){
+  let s = 0;
+  if(p.length >= 6) s++;
+  if(p.length >= 10) s++;
+  if(/[A-Za-z]/.test(p) && /[0-9]/.test(p)) s++;
+  if(/[^A-Za-z0-9]/.test(p)) s++;
+  return Math.min(s, 4);
+}
+
+/* ---------- little UI helpers ---------- */
+function setFieldError(inputId, errId, msg){
+  const input = document.getElementById(inputId);
+  const box = document.getElementById(errId);
+  if(msg){ box.textContent = msg; box.classList.add('show'); input.classList.add('invalid'); }
+  else { box.textContent = ''; box.classList.remove('show'); input.classList.remove('invalid'); }
+  return !msg;
+}
+function showBanner(id, msg){
+  const el = document.getElementById(id);
+  if(msg){ el.textContent = msg; el.classList.add('show'); } else { el.classList.remove('show'); }
+}
+function clearAuthMessages(){
+  ['loginError','loginOk','signupError','signupOk'].forEach(id=>showBanner(id, null));
+  ['loginUserErr','loginPassErr','signupUserErr','signupPassErr','signupPass2Err','signupCodeErr']
+    .forEach(id=>{ const e=document.getElementById(id); e.textContent=''; e.classList.remove('show'); });
+  document.querySelectorAll('.login-card input, .login-card select').forEach(i=>i.classList.remove('invalid'));
+}
+
+/* ---------- local (offline) account store ----------
+   Used only when the API cannot be reached. Same rules, same seeded
+   demo accounts as sql/seed.sql, so the demo behaves identically.    */
+async function hashPassword(plain){
+  try {
+    if(window.crypto && window.crypto.subtle){
+      const buf = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(plain));
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+  } catch(e){ /* falls through - file:// in some browsers has no crypto.subtle */ }
+  let h1 = 0x811c9dc5, h2 = 0x01000193;
+  for(let i=0;i<plain.length;i++){
+    h1 = (h1 ^ plain.charCodeAt(i)) >>> 0; h1 = (h1 * 16777619) >>> 0;
+    h2 = (h2 + plain.charCodeAt(i) * (i + 31)) >>> 0;
+  }
+  return ('fallback' + h1.toString(16) + h2.toString(16));
+}
+function readLocalUsers(){
+  try { return JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || 'null') || null; }
+  catch(e){ return null; }
+}
+function writeLocalUsers(list){
+  try { localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(list)); } catch(e){}
+}
+async function localUsers(){
+  let list = readLocalUsers();
+  if(!list){
+    list = [
+      { id:1, username:'admin', hash: await hashPassword('flownet123'), role:'admin',  lastLogin:null },
+      { id:2, username:'staff', hash: await hashPassword('ward2026'),   role:'staff',  lastLogin:null },
+      { id:3, username:'citizen', hash: await hashPassword('chennai01'), role:'citizen', lastLogin:null }
+    ];
+    writeLocalUsers(list);
+  }
+  return list;
+}
+async function localLogin(username, password){
+  const list = await localUsers();
+  const hash = await hashPassword(password);
+  const u = list.find(x => x.username.toLowerCase() === username.toLowerCase() && x.hash === hash);
+  if(!u) return { ok:false, status:401, message:'Incorrect username or password.' };
+  u.lastLogin = new Date().toISOString();
+  writeLocalUsers(list);
+  return { ok:true, data:{ success:true, username:u.username, role:u.role } };
+}
+async function localSignup(username, password, role){
+  const list = await localUsers();
+  if(list.some(x => x.username.toLowerCase() === username.toLowerCase())){
+    return { ok:false, status:409, message:'That username is already taken.' };
+  }
+  const user = {
+    id: list.reduce((m,x)=>Math.max(m,x.id), 0) + 1,
+    username, hash: await hashPassword(password), role, lastLogin:null
+  };
+  list.push(user);
+  writeLocalUsers(list);
+  return { ok:true, data:{ success:true, username:user.username, role:user.role } };
+}
+
+/* ---------- one call that tries the server, then falls back ---------- */
+let offlineMode = false;
+
+async function callApi(path, payload, localFn){
+  if(!offlineMode){
+    try {
+      const res = await fetch(path, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(()=> ({}));
+      if(res.ok && data.success) return { ok:true, data, online:true };
+      return { ok:false, status:res.status, message: data.message || 'Request failed.', online:true };
+    } catch(networkErr){
+      offlineMode = true;   // remember, so we don't retry a dead server on every keystroke
+    }
+  }
+  const r = await localFn();
+  r.online = false;
+  return r;
+}
+
+function offlineNotice(){
+  return 'Offline demo mode — ApiServer is not reachable, so accounts are being kept in this browser instead of MySQL. '
+       + 'Start ApiServer and open http://localhost:8080/ to use the real database.';
+}
+
+/* ---------- session ---------- */
+function saveSession(user){
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(user)); } catch(e){}
+}
+function loadSession(){
+  try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch(e){ return null; }
+}
+function clearSession(){
+  try { sessionStorage.removeItem(SESSION_KEY); } catch(e){}
+}
+
+function applySignedIn(user, online){
+  currentUser = user;
+  saveSession(user);
+
+  const roleLabel = ROLE_LABEL[user.role] || user.role;
+  document.getElementById('acctAvatar').textContent = user.username.charAt(0).toUpperCase();
+  document.getElementById('acctName').textContent = user.username;
+  document.getElementById('acctRole').dataset.role = user.role;
+  document.getElementById('acctRole').textContent = translate('role_'+user.role, roleLabel);
+  document.getElementById('staffBadgeText').textContent =
+    'Signed in as ' + user.username + ' (' + roleLabel + ')' + (online === false ? ' — offline demo' : ' — recorded in DB');
+
+  // the footer link is only meaningful for staff
+  const opsLink = document.getElementById('toOpsLink');
+  opsLink.style.display = isStaff() ? '' : 'none';
+
+  document.getElementById('loginForm').reset();
+  document.getElementById('signupForm').reset();
+  document.getElementById('staffCodeField').style.display = 'none';
+  clearAuthMessages();
+  gotoPage('home');
+}
+
+function signOut(){
+  currentUser = null;
+  clearSession();
+  clearAuthMessages();
+  document.getElementById('acctName').textContent = '—';
+  document.getElementById('acctAvatar').textContent = '?';
+  document.getElementById('acctRole').textContent = '';
+  gotoPage('login');
+}
+
+/* ---------- sign in ---------- */
+document.getElementById('loginForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  clearAuthMessages();
+
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  const btn = document.getElementById('loginSubmitBtn');
+
+  let ok = setFieldError('loginUser','loginUserErr', username ? null : 'Enter your username.');
+  ok = setFieldError('loginPass','loginPassErr', password ? null : 'Enter your password.') && ok;
+  if(!ok) return;
+
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const r = await callApi('/api/login', { username, password }, ()=>localLogin(username, password));
+    if(r.online === false) showBanner('authOfflineNote', offlineNotice());
+    if(r.ok){
+      applySignedIn({ username: r.data.username, role: r.data.role }, r.online);
+    } else {
+      showBanner('loginError', r.message || 'Incorrect username or password.');
+      document.getElementById('loginPass').value = '';
+    }
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign in';
+  }
+});
+
+/* ---------- sign up ---------- */
+const roleSelect = document.getElementById('signupRole');
+roleSelect.addEventListener('change', ()=>{
+  const needsCode = roleSelect.value !== 'citizen';
+  document.getElementById('staffCodeField').style.display = needsCode ? '' : 'none';
+  if(!needsCode) setFieldError('signupCode','signupCodeErr', null);
+});
+
+const signupPass = document.getElementById('signupPass');
+signupPass.addEventListener('input', ()=>{
+  const score = passwordScore(signupPass.value);
+  const bar = document.getElementById('pwMeterBar');
+  const txt = document.getElementById('pwMeterText');
+  const colors = ['var(--danger)','var(--danger)','var(--amber)','var(--safe)','var(--safe)'];
+  const words  = ['Too short','Weak','Okay','Good','Strong'];
+  bar.style.width = (score * 25) + '%';
+  bar.style.background = colors[score];
+  txt.textContent = signupPass.value ? ('Password strength: ' + words[score]) : 'Use 6+ characters, with a letter and a number.';
+});
+
+document.getElementById('signupShowPass').addEventListener('change', e=>{
+  const t = e.target.checked ? 'text' : 'password';
+  document.getElementById('signupPass').type = t;
+  document.getElementById('signupPass2').type = t;
+});
+document.getElementById('loginShowPass').addEventListener('change', e=>{
+  document.getElementById('loginPass').type = e.target.checked ? 'text' : 'password';
+});
+
+document.getElementById('signupForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  clearAuthMessages();
+
+  const username = document.getElementById('signupUser').value.trim();
+  const password = document.getElementById('signupPass').value;
+  const confirm  = document.getElementById('signupPass2').value;
+  const role     = roleSelect.value;
+  const code     = document.getElementById('signupCode').value.trim();
+  const btn      = document.getElementById('signupSubmitBtn');
+
+  let ok = setFieldError('signupUser','signupUserErr', validateUsername(username));
+  ok = setFieldError('signupPass','signupPassErr', validatePassword(password)) && ok;
+  ok = setFieldError('signupPass2','signupPass2Err',
+        !confirm ? 'Re-type your password.' : (confirm !== password ? 'The two passwords do not match.' : null)) && ok;
+  if(role !== 'citizen'){
+    ok = setFieldError('signupCode','signupCodeErr',
+          !code ? 'Staff accounts need the ward access code.'
+                : (code !== STAFF_ACCESS_CODE ? 'That access code is not valid.' : null)) && ok;
+  }
+  if(!ok) return;
+
+  btn.disabled = true; btn.textContent = 'Creating account…';
+  try {
+    const r = await callApi('/api/signup', { username, password, role, accessCode: code },
+                            ()=>localSignup(username, password, role));
+    if(r.online === false) showBanner('signupOfflineNote', offlineNotice());
+    if(r.ok){
+      // account created -> send them to the sign-in page and make them sign in,
+      // so the very first thing that happens is still a real login.
+      document.getElementById('signupForm').reset();
+      document.getElementById('staffCodeField').style.display = 'none';
+      document.getElementById('pwMeterBar').style.width = '0%';
+      gotoPage('login');
+      showBanner('loginOk', 'Account "' + r.data.username + '" created. Sign in to continue.');
+      if(r.online === false) showBanner('authOfflineNote', offlineNotice());
+      document.getElementById('loginUser').value = r.data.username;
+      document.getElementById('loginPass').focus();
+    } else {
+      if(r.status === 409) setFieldError('signupUser','signupUserErr', r.message || 'That username is already taken.');
+      showBanner('signupError', r.message || 'Could not create the account.');
+    }
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create account';
+  }
+});
+
+/* ---------- switching between the two auth pages ---------- */
+document.getElementById('goSignupBtn').addEventListener('click', ()=>{ clearAuthMessages(); gotoPage('signup'); });
+document.getElementById('goLoginBtn').addEventListener('click',  ()=>{ clearAuthMessages(); gotoPage('login'); });
+
+/* ---------- ops entry + logout ---------- */
+document.getElementById('toOpsLink').addEventListener('click', ()=> gotoPage('ops'));
+document.getElementById('logoutBtn').addEventListener('click', signOut);
+document.getElementById('headerLogout').addEventListener('click', signOut);
+
+/* ---------- boot: restore a session if there is one, else show login ---------- */
+(function bootAuth(){
+  const saved = loadSession();
+  if(saved && saved.username && saved.role){
+    applySignedIn(saved, true);
+  } else {
+    currentUser = null;
+    gotoPage('login');
+    document.getElementById('loginUser').focus();
+  }
+})();
+
+/* ---------------------------------------------------------------
+   HOME: mini map + recent reports
+----------------------------------------------------------------*/
+function riskFill(risk){ return risk==='crit' ? 'var(--danger)' : risk==='warn' ? 'var(--amber)' : 'var(--safe)'; }
+
+function buildSimpleMap(svgEl, viewW, viewH, opts){
+  svgEl.innerHTML = '';
+  const ns='http://www.w3.org/2000/svg';
+  function el(tag,attrs){ const e=document.createElementNS(ns,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); return e; }
+  const scaleX = viewW/760, scaleY = viewH/460;
+
+  const river = el('path', { d:'M10,150 C120,120 200,160 300,140 C400,120 480,150 690,120', stroke:'#3d8bd6', 'stroke-width': (opts&&opts.thin)?3:5, fill:'none', opacity:'0.5', 'stroke-linecap':'round', transform:`scale(${scaleX},${scaleY})` });
+  svgEl.appendChild(river);
+
+  zones.forEach(z=>{
+    const pts = z.points.split(' ').map(p=>{ const [x,y]=p.split(',').map(Number); return (x*scaleX).toFixed(1)+','+(y*scaleY).toFixed(1); }).join(' ');
+    const poly = el('polygon', { points: pts, fill: riskFill(z.risk), opacity:'0.18', class:'zone-poly', 'data-zone': z.id, style:'cursor:pointer;' });
+    const stroke = el('polygon', { points: pts, fill:'none', stroke: riskFill(z.risk), 'stroke-width':'1.3', opacity:'0.55' });
+    svgEl.appendChild(poly); svgEl.appendChild(stroke);
+    if(opts && opts.labels){
+      const cx = pts.split(' ').reduce((s,p)=>s+parseFloat(p.split(',')[0]),0)/pts.split(' ').length;
+      const cy = pts.split(' ').reduce((s,p)=>s+parseFloat(p.split(',')[1]),0)/pts.split(' ').length;
+      const t = el('text', { x:cx, y:cy, fill:'var(--text-dim)', 'font-size':'10.5', 'text-anchor':'middle', 'font-family':'Public Sans, sans-serif' });
+      t.textContent = translate('zone_'+z.id, z.name).split(' ')[0];
+      svgEl.appendChild(t);
+    }
+    if(opts && opts.clickable){ poly.addEventListener('click', ()=> filterAreaList(z.id)); }
+  });
+}
+buildSimpleMap(document.getElementById('homeMiniMap'), 380, 260, {});
+buildSimpleMap(document.getElementById('statusMap'), 700, 320, { labels:true, clickable:true });
+
+function renderRecentReports(){
+  const wrap = document.getElementById('recentReports');
+  const sample = [
+    { area:'Velachery', areaKey:'recent_area_1', desc:'recent_1', badge:'warn' },
+    { area:'T Nagar', areaKey:'recent_area_2', desc:'recent_2', badge:'safe' },
+    { area:'Adyar', areaKey:'recent_area_3', desc:'recent_3', badge:'warn' },
+    { area:'Perungudi', areaKey:'recent_area_4', desc:'recent_4', badge:'safe' },
+    { area:'Nungambakkam', areaKey:'recent_area_5', desc:'recent_5', badge:'safe' }
+  ];
+  wrap.innerHTML = sample.map(s=>`
+    <div class="report-item">
+      <span class="badge ${s.badge}">${translate(s.badge==='warn'?'recent_open':'recent_resolved')}</span>
+      <div class="loc">${translate(s.areaKey, s.area)}</div>
+      <div class="desc">${translate(s.desc)}</div>
+    </div>`).join('');
+}
+renderRecentReports();
+
+function updateHomeStatus(level){
+  const dot = document.getElementById('homeStatusDot');
+  dot.className = 'dot' + (level==='crit'?' crit':level==='warn'?' warn':'');
+  document.getElementById('homeStatusText').textContent = 'City flood risk: ' + riskLabels[level].label + ' right now';
+}
+
+/* ---------------------------------------------------------------
+   CITY STATUS PAGE
+----------------------------------------------------------------*/
+function renderAreaList(){
+  const wrap = document.getElementById('areaList');
+  wrap.innerHTML = zones.map(z=>`
+    <div class="area-row" data-zone="${z.id}">
+      <div><div class="an">${translate('zone_'+z.id, z.name)}</div><div class="as">${translate(z.status==='Water levels rising — monitor'?'zone_rising':'zone_normal', z.status)}</div></div>
+      <span class="tag ${z.risk}">${translate('risk_'+(z.risk==='safe'?'low':z.risk==='warn'?'moderate':'high'), riskLabels[z.risk].label)}</span>
+    </div>`).join('');
+}
+renderAreaList();
+function filterAreaList(zoneId){
+  document.querySelectorAll('.area-row').forEach(r=>{
+    r.style.outline = r.dataset.zone===zoneId ? '2px solid var(--brand)' : 'none';
+  });
+  gotoPage('status');
+  document.querySelector(`.area-row[data-zone="${zoneId}"]`)?.scrollIntoView({block:'center'});
+}
+function refreshStatusBanner(level){
+  const b = document.getElementById('statusBanner');
+  b.className = 'risk-banner ' + level;
+  const riskKey = level==='safe' ? 'low' : level==='warn' ? 'moderate' : 'high';
+  document.getElementById('statusBannerTitle').textContent = translate('status_city_risk', 'City-wide flood risk') + ': ' + translate('risk_'+riskKey, riskLabels[level].label);
+  document.getElementById('statusBannerSub').textContent = translate('risk_'+riskKey+'_desc', riskLabels[level].desc);
+  document.querySelector('#statusBanner .ric').textContent = level==='crit' ? '🚨' : level==='warn' ? '⚠️' : '🌤️';
+}
+refreshStatusBanner('safe');
+
+/* ---------------------------------------------------------------
+   REPORT WIZARD
+----------------------------------------------------------------*/
+const wizardState = { issue:null, zone:null, landmark:'', desc:'', severity:null, fileName:'', name:'', contact:'' };
+let wizardStep = 1; // 1..4, then 'confirm'
+const stepLabels = ['Issue','Location','Details','Contact'];
+
+function renderIssueGrid(){
+  document.getElementById('issueGrid').innerHTML = issueTypes.map(t=>`
+    <div class="issue-card ${wizardState.issue===t.id?'selected':''}" data-id="${t.id}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${t.icon}"/></svg>
+      <div class="lbl">${translate('issue_'+t.id, t.label)}</div>
+    </div>`).join('');
+}
+document.getElementById('issueGrid').addEventListener('click', e=>{
+  const c = e.target.closest('.issue-card'); if(!c) return;
+  wizardState.issue = c.dataset.id; renderIssueGrid(); updateNextEnabled();
+});
+
+function renderZonePicker(){
+  document.getElementById('zonePicker').innerHTML = zones.map(z=>`
+    <div class="zone-chip ${wizardState.zone===z.id?'selected':''}" data-id="${z.id}">
+      ${z.name}<span class="rk" style="background:${riskFill(z.risk)}"></span>
+    </div>`).join('');
+}
+document.getElementById('zonePicker').addEventListener('click', e=>{
+  const c = e.target.closest('.zone-chip'); if(!c) return;
+  wizardState.zone = c.dataset.id; renderZonePicker(); updateNextEnabled();
+});
+document.getElementById('landmarkInput').addEventListener('input', e=>{ wizardState.landmark = e.target.value; updateNextEnabled(); });
+
+function renderSeverityList(){
+  document.getElementById('severityList').innerHTML = severities.map(s=>`
+    <label class="radio-item ${wizardState.severity===s.id?'selected':''}" data-id="${s.id}">
+      <input type="radio" name="sev" ${wizardState.severity===s.id?'checked':''}>
+      <span><span class="rt">${translate('severity_'+s.id, s.title)}</span><div class="rd">${translate('severity_'+s.id+'_desc', s.desc)}</div></span>
+    </label>`).join('');
+}
+document.getElementById('severityList').addEventListener('click', e=>{
+  const c = e.target.closest('.radio-item'); if(!c) return;
+  wizardState.severity = c.dataset.id; renderSeverityList(); updateNextEnabled();
+});
+document.getElementById('descInput').addEventListener('input', e=>{ wizardState.desc = e.target.value; updateNextEnabled(); });
+
+document.getElementById('fileDrop').addEventListener('click', ()=> document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', e=>{
+  const f = e.target.files[0];
+  wizardState.fileName = f ? f.name : '';
+  document.getElementById('fileName').textContent = wizardState.fileName;
+});
+
+document.getElementById('nameInput').addEventListener('input', e=> wizardState.name = e.target.value);
+document.getElementById('contactInput').addEventListener('input', e=> wizardState.contact = e.target.value);
+
+function renderProgress(){
+  const track = document.getElementById('progressTrack');
+  const labels = document.getElementById('progressLabels');
+  const stepIdx = wizardStep === 'confirm' ? 4 : wizardStep;
+  const progressKeys = ['progress_issue','progress_location','progress_details','progress_contact'];
+  track.innerHTML = stepLabels.map((l,i)=>{
+    const n=i+1; const cls = n<stepIdx ? 'done' : n===stepIdx ? 'current' : '';
+    return `<div class="progress-seg ${cls}"></div>`;
+  }).join('');
+  labels.innerHTML = stepLabels.map((l,i)=> `<span style="${i+1===stepIdx?'color:var(--brand);font-weight:700;':''}">${translate(progressKeys[i], l)}</span>`).join('');
+}
+
+function showWizardStep(){
+  document.querySelectorAll('.wizard-step').forEach(s=>s.classList.remove('active'));
+  const nav = document.getElementById('wizardNav');
+  if(wizardStep==='confirm'){
+    document.getElementById('w-step-confirm').classList.add('active');
+    nav.style.display='none';
+  } else {
+    document.getElementById('w-step-'+wizardStep).classList.add('active');
+    nav.style.display='flex';
+    document.getElementById('wizBack').style.visibility = wizardStep===1 ? 'hidden' : 'visible';
+    document.getElementById('wizNext').textContent = wizardStep===4 ? translate('submit_ticket', 'Submit ticket') : translate('next', 'Next');
+  }
+  renderProgress();
+  updateNextEnabled();
+  if(wizardStep===4) renderReview();
+}
+
+function updateNextEnabled(){
+  if(wizardStep==='confirm') return;
+  const btn = document.getElementById('wizNext');
+  let ok = true;
+  if(wizardStep===1) ok = !!wizardState.issue;
+  if(wizardStep===2) ok = !!wizardState.zone && wizardState.landmark.trim().length>0;
+  if(wizardStep===3) ok = wizardState.desc.trim().length>0 && !!wizardState.severity;
+  btn.disabled = !ok;
+}
+
+function renderReview(){
+  const issueLbl = issueTypes.find(t=>t.id===wizardState.issue)?.label || '—';
+  const zoneLbl = zones.find(z=>z.id===wizardState.zone)?.name || '—';
+  const sevLbl = severities.find(s=>s.id===wizardState.severity)?.title || '—';
+  const rows = [
+    [translate('review_issue', 'Issue'), issueLbl],
+    [translate('review_area', 'Area'), zoneLbl],
+    [translate('review_landmark', 'Landmark'), wizardState.landmark || '—'],
+    [translate('review_urgency', 'Urgency'), sevLbl],
+    [translate('review_photo', 'Photo'), wizardState.fileName || translate('not_attached', 'Not attached')],
+    [translate('review_contact', 'Contact'), wizardState.contact || translate('not_provided', 'Not provided')]
+  ];
+  document.getElementById('reviewList').innerHTML = rows.map(([k,v])=>`<div class="review-row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
+}
+
+document.getElementById('wizNext').addEventListener('click', ()=>{
+  if(wizardStep===4){ submitTicket(); return; }
+  wizardStep++;
+  showWizardStep();
+});
+document.getElementById('wizBack').addEventListener('click', ()=>{
+  if(typeof wizardStep==='number' && wizardStep>1){ wizardStep--; showWizardStep(); }
+});
+
+function resetWizard(){
+  wizardStep = 1;
+  Object.assign(wizardState, { issue:null, zone:null, landmark:'', desc:'', severity:null, fileName:'', name:'', contact:'' });
+  document.getElementById('landmarkInput').value='';
+  document.getElementById('descInput').value='';
+  document.getElementById('nameInput').value='';
+  document.getElementById('contactInput').value='';
+  document.getElementById('fileName').textContent='';
+  renderIssueGrid(); renderZonePicker(); renderSeverityList();
+  showWizardStep();
+}
+
+function submitTicket(){
+  ticketSeq++;
+  const id = 'FN-2026-' + String(ticketSeq).padStart(4,'0');
+  const issueLbl = issueTypes.find(t=>t.id===wizardState.issue)?.label || 'Reported issue';
+  const zone = zones.find(z=>z.id===wizardState.zone);
+  const priority = wizardState.severity==='urgent' ? 'high' : wizardState.severity==='worse' ? 'med' : 'low';
+  const team = zone ? zone.name.split(' ')[0] + ' Field Crew' : 'Field Crew';
+  const t = {
+    id, problem: issueLbl, location: (wizardState.landmark || 'Unspecified') + ', ' + (zone?zone.name:'—'),
+    area: wizardState.zone, priority, team, status:'Submitted', stage:0,
+    source:'Citizen report', submitted:'Just now', description: wizardState.desc
+  };
+  tickets.push(t);
+  renderTicketsTable();
+  document.getElementById('confirmTicketId').textContent = id;
+  wizardStep = 'confirm';
+  window._lastSubmittedTicket = id;
+  showWizardStep();
+}
+document.getElementById('copyTicketBtn').addEventListener('click', ()=>{
+  const id = document.getElementById('confirmTicketId').textContent;
+  navigator.clipboard?.writeText(id).catch(()=>{});
+  const btn = document.getElementById('copyTicketBtn');
+  const orig = btn.textContent; btn.textContent='Copied'; setTimeout(()=>btn.textContent=orig, 1400);
+});
+document.getElementById('goTrackBtn').addEventListener('click', ()=>{
+  gotoPage('track');
+  document.getElementById('trackInput').value = window._lastSubmittedTicket || '';
+  doTrack();
+});
+document.getElementById('reportAnotherBtn').addEventListener('click', ()=>{ resetWizard(); });
+
+renderIssueGrid(); renderZonePicker(); renderSeverityList();
+
+/* ---------------------------------------------------------------
+   TRACK PAGE
+----------------------------------------------------------------*/
+function renderRecentTry(){}
+function iconCheck(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>'; }
+
+function doTrack(){
+  const id = document.getElementById('trackInput').value.trim().toUpperCase();
+  const result = document.getElementById('trackResult');
+  const t = tickets.find(tk=>tk.id.toUpperCase()===id);
+  if(!t){
+    result.innerHTML = `<div class="ticket-summary"><strong>We couldn't find that ticket.</strong><p class="section-sub" style="margin:6px 0 0;">Double check the ticket ID, or report a new issue if you haven't already.</p></div>`;
+    return;
+  }
+  const tl = stages.map((s,i)=>{
+    const done = i <= t.stage;
+    return `<div class="tl-item">
+      <div class="tl-marker">
+        <div class="tl-dot ${done?'done':''}">${done?iconCheck():''}</div>
+        ${i<stages.length-1?`<div class="tl-line ${i<t.stage?'done':''}"></div>`:''}
+      </div>
+      <div class="tl-body"><div class="tl-title" style="${done?'':'color:var(--text-dim);'}">${s}</div>${i===t.stage?`<div class="tl-time">Current status</div>`:''}</div>
+    </div>`;
+  }).join('');
+  result.innerHTML = `
+    <div class="ticket-summary">
+      <div class="review-row"><span class="k">Ticket</span><span class="v mono">${t.id}</span></div>
+      <div class="review-row"><span class="k">Issue</span><span class="v">${t.problem}</span></div>
+      <div class="review-row"><span class="k">Location</span><span class="v">${t.location}</span></div>
+      <div class="review-row"><span class="k">Assigned to</span><span class="v">${t.team}</span></div>
+      <div class="review-row"><span class="k">Submitted</span><span class="v">${t.submitted}</span></div>
+    </div>
+    <div class="timeline">${tl}</div>`;
+}
+document.getElementById('trackBtn').addEventListener('click', doTrack);
+document.getElementById('trackInput').addEventListener('keydown', e=>{ if(e.key==='Enter') doTrack(); });
+document.getElementById('tryTicket1').addEventListener('click', ()=>{ document.getElementById('trackInput').value='FN-2026-0001'; doTrack(); });
+document.getElementById('tryTicket2').addEventListener('click', ()=>{ document.getElementById('trackInput').value='FN-2026-0002'; doTrack(); });
+
+/* ---------------------------------------------------------------
+   OPS: nav
+----------------------------------------------------------------*/
+document.getElementById('opsNav').addEventListener('click', e=>{
+  const b = e.target.closest('.ops-nav-item'); if(!b) return;
+  document.querySelectorAll('.ops-nav-item').forEach(x=>x.classList.toggle('active', x===b));
+  document.querySelectorAll('.ops-view').forEach(v=>v.classList.toggle('active', v.id==='ops-'+b.dataset.ops));
+});
+
+/* ---------------------------------------------------------------
+   OPS: risk state, AI-nowcast gauge (merged from
+   flownet-ops-dashboard.html) + trend chart
+----------------------------------------------------------------*/
+function drawGauge(pct, colorVar){
+  const svg = document.getElementById('riskGauge');
+  if(!svg) return;
+  svg.innerHTML = '';
+  const ns='http://www.w3.org/2000/svg';
+  const cx=110, cy=110, r=90;
+  function polar(cx,cy,r,deg){ const rad=(deg-180)*Math.PI/180; return { x: cx + r*Math.cos(rad), y: cy + r*Math.sin(rad) }; }
+  function arc(startDeg,endDeg,color,width){
+    const s = polar(cx,cy,r,startDeg), e = polar(cx,cy,r,endDeg);
+    const large = endDeg-startDeg <= 180 ? 0 : 1;
+    const p = document.createElementNS(ns,'path');
+    p.setAttribute('d', `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${e.x} ${e.y}`);
+    p.setAttribute('fill','none'); p.setAttribute('stroke',color); p.setAttribute('stroke-width',width); p.setAttribute('stroke-linecap','round');
+    svg.appendChild(p);
+  }
+  arc(0,180,'var(--panel-2)',14);
+  const sweep = 180 * pct;
+  arc(0, sweep, colorVar, 14);
+  const tip = polar(cx,cy,74,sweep);
+  const needle = document.createElementNS(ns,'line');
+  needle.setAttribute('x1',cx); needle.setAttribute('y1',cy); needle.setAttribute('x2',tip.x); needle.setAttribute('y2',tip.y);
+  needle.setAttribute('stroke','var(--text)'); needle.setAttribute('stroke-width','2.5'); needle.setAttribute('stroke-linecap','round');
+  svg.appendChild(needle);
+  const hub = document.createElementNS(ns,'circle');
+  hub.setAttribute('cx',cx); hub.setAttribute('cy',cy); hub.setAttribute('r',5); hub.setAttribute('fill','var(--text)');
+  svg.appendChild(hub);
+}
+
+let currentRisk = 'safe';
+function setRisk(level){
+  currentRisk = level;
+  const etaMap = { safe:'No flooding expected', warn:'\u2248 90 minutes', crit:'\u2248 35 minutes' };
+  const pctMap = { safe:0.22, warn:0.58, crit:0.9 };
+  const colorMap = { safe:'var(--safe)', warn:'var(--amber)', crit:'var(--danger)' };
+  const zoneMap = { safe:'—', warn:'Adyar Confluence', crit:'Velachery Basin' };
+
+  document.getElementById('o-risk').textContent = riskLabels[level].label;
+  document.getElementById('o-eta').textContent = etaMap[level];
+
+  drawGauge(pctMap[level], colorMap[level]);
+  document.getElementById('gaugeLevel').textContent = riskLabels[level].label;
+  document.getElementById('gaugeSub').textContent = 'Model confidence ' + (level==='crit'?96:level==='warn'?88:91) + '%';
+  document.getElementById('predZone').textContent = zoneMap[level];
+  document.getElementById('predEta').textContent = etaMap[level];
+  document.getElementById('predUpdated').textContent = new Date().toLocaleTimeString('en-IN',{hour12:false});
+
+  updateHomeStatus(level);
+  refreshStatusBanner(level);
+}
+setRisk('safe');
+
+function drawTrendChart(rainSeries, waterSeries, svgId){
+  const svg = document.getElementById(svgId || 'trendChart');
+  if(!svg) return;
+  svg.innerHTML = '';
+  const ns='http://www.w3.org/2000/svg';
+  const W=640,H=240, padL=34, padR=14, padT=12, padB=26;
+  const plotW=W-padL-padR, plotH=H-padT-padB, n=rainSeries.length;
+  for(let i=0;i<=4;i++){
+    const y = padT+plotH*i/4;
+    const line=document.createElementNS(ns,'line');
+    line.setAttribute('x1',padL); line.setAttribute('x2',W-padR); line.setAttribute('y1',y); line.setAttribute('y2',y);
+    line.setAttribute('stroke','var(--border)'); line.setAttribute('stroke-width','1');
+    svg.appendChild(line);
+  }
+  function pathFor(series,maxVal){
+    return series.map((v,i)=>{ const x=padL+plotW*i/(n-1); const y=padT+plotH*(1-v/maxVal); return (i===0?'M':'L')+x.toFixed(1)+','+y.toFixed(1); }).join(' ');
+  }
+  const rainMax = Math.max(...rainSeries,30)*1.2, waterMax = Math.max(...waterSeries,2)*1.3;
+  const p1=document.createElementNS(ns,'path'); p1.setAttribute('d',pathFor(rainSeries,rainMax)); p1.setAttribute('fill','none'); p1.setAttribute('stroke','#3d8bd6'); p1.setAttribute('stroke-width','2.5');
+  svg.appendChild(p1);
+  const p2=document.createElementNS(ns,'path'); p2.setAttribute('d',pathFor(waterSeries,waterMax)); p2.setAttribute('fill','none'); p2.setAttribute('stroke','var(--teal)'); p2.setAttribute('stroke-width','2.5');
+  svg.appendChild(p2);
+  ['-6h','-5h','-4h','-3h','-2h','-1h','now'].forEach((lab,i)=>{
+    const x=padL+plotW*i/(n-1);
+    const t=document.createElementNS(ns,'text'); t.setAttribute('x',x); t.setAttribute('y',H-8); t.setAttribute('font-size','10'); t.setAttribute('fill','var(--text-dim)'); t.setAttribute('text-anchor','middle');
+    t.textContent=lab; svg.appendChild(t);
+  });
+}
+let rainSeries=[2,4,6,9,13,16,18], waterSeries=[0.6,0.7,0.8,0.9,1.1,1.3,1.4];
+drawTrendChart(rainSeries, waterSeries, 'trendChart');
+drawTrendChart(rainSeries, waterSeries, 'trendChartNowcast');
+
+/* ---------------------------------------------------------------
+   OPS: full GIS map
+----------------------------------------------------------------*/
+function buildFullMap(){
+  const svgEl = document.getElementById('gisMap');
+  svgEl.innerHTML='';
+  const ns='http://www.w3.org/2000/svg';
+  function el(tag,attrs){ const e=document.createElementNS(ns,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); return e; }
+  const river = el('path',{ d:'M20,240 C160,200 280,260 400,220 C520,180 620,240 740,200', stroke:'#3d8bd6','stroke-width':7, fill:'none', opacity:'0.5','stroke-linecap':'round'});
+  svgEl.appendChild(river);
+  zones.forEach(z=>{
+    const poly = el('polygon',{points:z.points, fill:riskFill(z.risk), opacity:'0.16', class:'zone-poly','data-zone':z.id, style:'cursor:pointer;'});
+    const stroke = el('polygon',{points:z.points, fill:'none', stroke:riskFill(z.risk),'stroke-width':'1.4', opacity:'0.55'});
+    svgEl.appendChild(poly); svgEl.appendChild(stroke);
+    const pts = z.points.split(' ').map(p=>p.split(',').map(Number));
+    const cx = pts.reduce((s,p)=>s+p[0],0)/pts.length, cy = pts.reduce((s,p)=>s+p[1],0)/pts.length;
+    const label = el('text',{x:cx,y:cy,fill:'var(--text-dim)','font-size':'10.5','text-anchor':'middle'});
+    label.textContent = z.name; svgEl.appendChild(label);
+    poly.addEventListener('click', ()=> showZoneDetail(z.id));
+  });
+  nodes.forEach(n=>{
+    const g = el('g',{style:'cursor:pointer;'});
+    const c = el('circle',{cx:n.x,cy:n.y,r:n.type==='sensor'?6:5.5, fill: n.status==='Clear'?'var(--panel)':(n.status.includes('Blockage')?'var(--danger)':'var(--amber)'), stroke:'var(--text)','stroke-width':'1.3'});
+    g.appendChild(c);
+    if(n.type==='sensor'){ g.appendChild(el('circle',{cx:n.x,cy:n.y,r:9, fill:'none', stroke:'var(--teal)','stroke-width':'1', opacity:'0.5'})); }
+    svgEl.appendChild(g);
+    g.addEventListener('click', ()=> showNodeDetail(n.id));
+  });
+}
+function showZoneDetail(zoneId){
+  const z = zones.find(zz=>zz.id===zoneId);
+  document.getElementById('nodeDetail').innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;"><strong style="font-size:14px;">${z.name}</strong><span class="tag ${z.risk}">${riskLabels[z.risk].label}</span></div>
+    <div class="review-row"><span class="k">Water level</span><span class="v">${z.level}</span></div>
+    <div class="review-row"><span class="k">Drainage flow</span><span class="v">${z.flow}</span></div>
+    <div class="review-row"><span class="k">Status</span><span class="v">${z.status}</span></div>`;
+}
+function showNodeDetail(nodeId){
+  const n = nodes.find(nn=>nn.id===nodeId);
+  const z = zones.find(zz=>zz.id===n.zone);
+  const statusTag = n.status==='Clear'?'safe':n.status.includes('Blockage')?'crit':'warn';
+  document.getElementById('nodeDetail').innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;"><strong style="font-size:14px;">${n.id}</strong><span class="tag ${statusTag}">${n.status}</span></div>
+    <p class="section-sub" style="margin:4px 0 0;">${n.type==='sensor'?'Sensor node':'Manhole'} \u00b7 ${z.name}</p>
+    <div class="review-row"><span class="k">Water level</span><span class="v">${n.level}</span></div>
+    <div class="review-row"><span class="k">Flow rate</span><span class="v">${n.flow}</span></div>`;
+}
+buildFullMap();
+
+/* ---------------------------------------------------------------
+   OPS: inspection
+----------------------------------------------------------------*/
+const locList = document.getElementById('locList');
+locList.innerHTML = inspectionLocations.map(l=>`
+  <button class="loc-item" data-id="${l.id}" style="text-align:left; padding:9px 11px; border-radius:7px; border:1px solid var(--border); background:var(--panel-2); color:var(--text); font-size:12.5px; cursor:pointer;">
+    ${l.id}<div style="font-size:10.5px; color:var(--text-dim);">${l.zoneName}</div>
+  </button>`).join('');
+
+function drawCamera(defectType){
+  const svg = document.getElementById('camView');
+  svg.innerHTML=''; const ns='http://www.w3.org/2000/svg';
+  function el(tag,attrs){ const e=document.createElementNS(ns,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); return e; }
+  svg.appendChild(el('rect',{x:0,y:0,width:560,height:280,fill:'#0b1a26'}));
+  for(let i=0;i<6;i++){
+    const r=55+i*33;
+    svg.appendChild(el('ellipse',{cx:280,cy:140,rx:r*1.5,ry:r,fill:'none',stroke:'#22394a',opacity:(0.5-i*0.06)}));
+  }
+  svg.appendChild(el('ellipse',{cx:280,cy:140,rx:66,ry:42,fill:'#03060a'}));
+  if(defectType==='blockage'){
+    svg.appendChild(el('ellipse',{cx:250,cy:165,rx:58,ry:32,fill:'#4a3b28',stroke:'var(--danger)','stroke-width':2,'stroke-dasharray':'5,3'}));
+    svg.appendChild(el('rect',{x:185,y:128,width:130,height:78,fill:'none',stroke:'var(--danger)','stroke-width':1.5}));
+    const t=el('text',{x:185,y:122,'font-size':11,fill:'var(--danger)'}); t.textContent='BLOCKAGE — 0.94'; svg.appendChild(t);
+  } else if(defectType==='crack'){
+    svg.appendChild(el('path',{d:'M180,80 L210,118 L195,138 L232,185 L218,200 L250,240', fill:'none',stroke:'var(--amber)','stroke-width':2.5,'stroke-linecap':'round'}));
+    svg.appendChild(el('rect',{x:160,y:68,width:115,height:185,fill:'none',stroke:'var(--amber)','stroke-width':1.5}));
+    const t=el('text',{x:160,y:62,'font-size':11,fill:'var(--amber)'}); t.textContent='CRACK — 0.78'; svg.appendChild(t);
+  } else if(defectType==='clear'){
+    const t=el('text',{x:280,y:140,'font-size':12,fill:'var(--safe)','text-anchor':'middle'}); t.textContent='NO DEFECT DETECTED'; svg.appendChild(t);
+  } else {
+    const t=el('text',{x:280,y:140,'font-size':12,fill:'#6f8ba0','text-anchor':'middle'}); t.textContent='SELECT A LOCATION'; svg.appendChild(t);
+  }
+}
+drawCamera(null);
+const severityLabel = { safe:'No action needed', warn:'Moderate', crit:'Critical' };
+let lastInspected = null;
+function selectLocation(id){
+  const loc = inspectionLocations.find(l=>l.id===id); lastInspected = loc;
+  document.querySelectorAll('#locList button').forEach(b=> b.style.borderColor = b.dataset.id===id ? 'var(--brand)' : 'var(--border)');
+  drawCamera(loc.defect);
+  const card = document.getElementById('defectCard'); card.style.display='block';
+  const titleMap = { blockage:'Blockage detected', crack:'Crack detected', clear:'No defect detected' };
+  document.getElementById('defectTitle').textContent = titleMap[loc.defect] + ' \u2014 ' + loc.note;
+  const sev = document.getElementById('defectSeverity'); sev.className='tag '+loc.severity; sev.textContent = severityLabel[loc.severity];
+  document.getElementById('confPct').textContent = Math.round(loc.confidence*100)+'%';
+  const btn = document.getElementById('createTicketBtn');
+  btn.disabled = loc.defect==='clear';
+  btn.textContent = loc.defect==='clear' ? 'No ticket needed' : 'Create maintenance ticket';
+}
+locList.addEventListener('click', e=>{ const b=e.target.closest('button[data-id]'); if(b) selectLocation(b.dataset.id); });
+document.getElementById('createTicketBtn').addEventListener('click', ()=>{
+  if(!lastInspected || lastInspected.defect==='clear') return;
+  createTicketFromInspection(lastInspected);
+});
+
+/* ---------------------------------------------------------------
+   OPS: maintenance table (shared with citizen tickets)
+----------------------------------------------------------------*/
+function renderTicketsTable(){
+  const body = document.getElementById('ticketBody');
+  body.innerHTML = tickets.slice().reverse().map(t=>`
+    <tr>
+      <td class="mono">${t.id}</td>
+      <td>${t.problem}</td>
+      <td>${t.location}</td>
+      <td><span class="prio ${t.priority}">${t.priority==='high'?'High':t.priority==='med'?'Medium':'Low'}</span></td>
+      <td>${t.team}</td>
+      <td>${t.status}<div class="src-tag">${t.source}</div></td>
+    </tr>`).join('');
+}
+renderTicketsTable();
+
+function createTicketFromInspection(loc){
+  ticketSeq++;
+  const id = 'FN-2026-' + String(ticketSeq).padStart(4,'0');
+  const defectLabel = loc.defect==='blockage' ? 'Blockage in drainage line' : 'Crack in drainage pipe';
+  const priority = loc.severity==='crit' ? 'high' : loc.severity==='warn' ? 'med' : 'low';
+  tickets.push({ id, problem:defectLabel, location: loc.id+' — '+loc.zoneName, area:null, priority, team: loc.zoneName.split(' ')[0]+' Field Crew', status:'Open', stage:1, source:'AI inspection', submitted:'Just now' });
+  renderTicketsTable();
+}
+
+/* ---------------------------------------------------------------
+   OPS: demo scenario
+----------------------------------------------------------------*/
+const demoSteps = ['Heavy rainfall','Water level rising','AI predicts risk','Map highlights zone','Inspection finds blockage','Ticket created'];
+let demoRunning = false;
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function renderSimSteps(activeIdx){
+  document.getElementById('simSteps').innerHTML = demoSteps.map((s,i)=>{
+    const cls = i<activeIdx?'done':i===activeIdx?'active':'';
+    return `<span class="sim-step ${cls}">${i+1}. ${s}</span>`;
+  }).join('');
+}
+function opsGoto(tab){
+  document.querySelectorAll('.ops-nav-item').forEach(x=>x.classList.toggle('active', x.dataset.ops===tab));
+  document.querySelectorAll('.ops-view').forEach(v=>v.classList.toggle('active', v.id==='ops-'+tab));
+}
+async function runDemo(){
+  if(demoRunning) return; demoRunning = true;
+  const btn = document.getElementById('runDemoBtn'); btn.disabled=true; btn.textContent='\u23f8 Running\u2026';
+  document.getElementById('simBanner').classList.add('show');
+
+  renderSimSteps(0); opsGoto('monitor');
+  document.getElementById('o-rainfall').textContent = '42 mm';
+  await sleep(1400);
+
+  renderSimSteps(1);
+  document.getElementById('o-waterlevel').textContent = '2.1 m';
+  rainSeries=[2,4,6,9,13,18,42]; waterSeries=[0.6,0.7,0.8,0.9,1.1,1.4,2.1];
+  drawTrendChart(rainSeries, waterSeries, 'trendChart');
+  drawTrendChart(rainSeries, waterSeries, 'trendChartNowcast');
+  await sleep(1400);
+
+  renderSimSteps(2);
+  opsGoto('nowcast');
+  setRisk('crit');
+  await sleep(1400);
+
+  renderSimSteps(3);
+  opsGoto('map');
+  const vzone = zones.find(z=>z.id==='wardV'); vzone.risk='crit'; vzone.status='High risk — avoid the area';
+  buildFullMap(); buildSimpleMap(document.getElementById('statusMap'),700,320,{labels:true,clickable:true});
+  buildSimpleMap(document.getElementById('homeMiniMap'),380,260,{});
+  renderAreaList();
+  showZoneDetail('wardV');
+  await sleep(1600);
+
+  renderSimSteps(4);
+  opsGoto('inspect');
+  selectLocation('MH-014');
+  await sleep(1600);
+
+  renderSimSteps(5);
+  createTicketFromInspection(inspectionLocations.find(l=>l.id==='MH-014'));
+  await sleep(700);
+  opsGoto('maint');
+  await sleep(900);
+
+  renderSimSteps(6);
+  btn.disabled=false; btn.textContent='\u25b6 Run demo scenario';
+  demoRunning=false;
+}
+document.getElementById('runDemoBtn').addEventListener('click', runDemo);
+
+/* ---------------------------------------------------------------
+   THEME (follows system by default; no manual toggle needed on public site)
+----------------------------------------------------------------*/
+
+/* ---------------------------------------------------------------
+   3D WATER DROPLET (hero of the sign-in / sign-up pages)
+   A small WebGL fragment shader raymarches a teardrop (smooth-union of
+   three spheres), lights it like water/glass - fresnel rim, a refracted
+   "inverted image" inside, a caustic at the base, sharp highlights - and
+   lets it wobble + tilt towards the mouse. Transparent, so the video
+   shows through it. No WebGL -> the SVG droplet (.drop-fallback) is used.
+----------------------------------------------------------------*/
+(function dropFX(){
+  const canvases = Array.prototype.slice.call(document.querySelectorAll('canvas.hero-drop'));
+  if(!canvases.length) return;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const CSS_W = 250, CSS_H = 300;
+
+  const VERT = 'attribute vec2 a; void main(){ gl_Position = vec4(a, 0.0, 1.0); }';
+  const FRAG = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform vec2  uRes;
+uniform float uTime;
+uniform vec2  uTilt;
+
+mat3 rotX(float a){ float c=cos(a), s=sin(a); return mat3(1.0,0.0,0.0,  0.0,c,s,  0.0,-s,c); }
+mat3 rotZ(float a){ float c=cos(a), s=sin(a); return mat3(c,s,0.0,  -s,c,0.0,  0.0,0.0,1.0); }
+
+/* exact 2D SDF of a circle (r1) blending into a tip (r2) over height h - revolved around Y */
+float sdTaper(vec2 p, float r1, float r2, float h){
+  float b = (r1 - r2) / h;
+  float a = sqrt(1.0 - b*b);
+  float k = dot(p, vec2(-b, a));
+  if(k < 0.0)     return length(p) - r1;
+  if(k > a*h)     return length(p - vec2(0.0, h)) - r2;
+  return dot(p, vec2(a, b)) - r1;
+}
+
+/* teardrop: round belly, straight taper to a fine tip, slightly pinched (concave) near the top,
+   plus a slow jelly wobble */
+float map(vec3 p){
+  float r = length(p.xz);
+  /* smooth everywhere (no angle/pole singularity -> no dimple at the base or tip) */
+  float w = 0.010*sin(4.0*p.x + 3.0*p.y + uTime*1.7)
+          + 0.008*sin(4.5*p.z - 4.0*p.y - uTime*2.3);
+  vec2 q = vec2(r, p.y + 0.24);
+  q.x *= 1.0 + 0.60*smoothstep(0.30, 1.25, q.y);       /* pinch towards the tip */
+  return sdTaper(q, 0.53, 0.02, 1.25) * 0.8 + w;
+}
+vec3 calcNormal(vec3 p){
+  vec2 e = vec2(1.0,-1.0)*0.0015;
+  return normalize(e.xyy*map(p+e.xyy) + e.yyx*map(p+e.yyx) + e.yxy*map(p+e.yxy) + e.xxx*map(p+e.xxx));
+}
+
+/* procedural studio environment: cyan gradient, horizon streak, moving light panels */
+vec3 env(vec3 d){
+  float h = d.y*0.5 + 0.5;
+  vec3 c = mix(vec3(0.01,0.05,0.09), vec3(0.16,0.58,0.72), pow(h, 1.4));
+  c += vec3(0.30,0.85,1.00) * 0.35 * exp(-pow(d.y*5.0, 2.0));
+  float a = uTime*0.35;
+  vec3 l1 = normalize(vec3(cos(a),        0.55, sin(a)));
+  vec3 l2 = normalize(vec3(cos(a+2.4),    0.10, sin(a+2.4)));
+  vec3 l3 = normalize(vec3(cos(a+4.2),   -0.35, sin(a+4.2)));
+  c += vec3(1.00,1.00,1.00) * smoothstep(0.90, 0.97, dot(d,l1)) * 1.6;
+  c += vec3(0.45,0.95,1.00) * smoothstep(0.86, 0.95, dot(d,l2)) * 1.0;
+  c += vec3(0.30,0.70,1.00) * smoothstep(0.88, 0.96, dot(d,l3)) * 0.7;
+  return c;
+}
+
+void main(){
+  vec2 uv = (gl_FragCoord.xy - 0.5*uRes) / uRes.y;
+
+  /* object rotation: idle sway + tilt towards the pointer */
+  mat3 R = rotZ(0.10*sin(uTime*0.7) - uTilt.x*0.32) * rotX(0.07*sin(uTime*0.9 + 1.0) + uTilt.y*0.28);
+  vec3 ro = vec3(0.0, 0.12, 3.0) * R;                  /* v*R == transpose(R)*v : world -> object */
+  vec3 rd = normalize(vec3(uv*0.78, -1.0)) * R;
+
+  float t = 0.0, mind = 1e3; bool hit = false;
+  for(int i=0; i<60; i++){
+    float d = map(ro + rd*t);
+    mind = min(mind, d);
+    if(d < 0.0012){ hit = true; break; }
+    t += d*0.9;
+    if(t > 6.0) break;
+  }
+
+  vec4 outc = vec4(0.0);
+  if(hit){
+    vec3 p  = ro + rd*t;
+    vec3 n  = calcNormal(p);
+    float ndv  = clamp(dot(n, -rd), 0.0, 1.0);
+    float fres = pow(1.0 - ndv, 2.4);
+
+    vec3 rflW = R * reflect(rd, n);                     /* reflection, world space */
+    vec3 rfr  = refract(rd, n, 1.0/1.33);
+    vec3 rfrW = R * rfr;
+
+    /* inside the drop the scene appears flipped, like a lens */
+    vec3 inner = env(vec3(rfrW.x, -rfrW.y, rfrW.z));
+    vec3 water = vec3(0.04, 0.50, 0.70);
+    vec3 col   = mix(water, inner, 0.42);
+    float a    = 0.20 + 0.38*fres + 0.10*(1.0 - ndv);
+
+    /* base caustic: light focused through the belly */
+    float caus = pow(max(dot(normalize(rfr), vec3(0.0,-1.0,0.15)), 0.0), 3.5) * (1.0 - fres);
+    col += vec3(0.55,1.00,1.00) * caus * 1.25;
+    a   += caus * 0.45;
+    /* light pools towards the bottom of the belly */
+    col += vec3(0.10,0.55,0.70) * smoothstep(0.15, -0.75, p.y) * 0.55;
+
+    /* mirror reflection + neon rim */
+    col += env(rflW) * fres * 0.95;
+    col += vec3(0.30,0.95,1.00) * fres * 0.75;
+
+    /* crisp specular highlights */
+    vec3 L1 = normalize(vec3(-0.55, 0.70, 0.55));
+    vec3 L2 = normalize(vec3( 0.65,-0.35, 0.45));
+    float s1 = pow(max(dot(rflW, L1), 0.0), 110.0);
+    float s2 = pow(max(dot(rflW, L2), 0.0), 45.0);
+    vec3 spec = vec3(1.0)*s1*1.8 + vec3(0.40,0.95,1.00)*s2*0.7;
+
+    a = clamp(a, 0.0, 1.0);
+    outc = vec4(col*a + spec, clamp(a + max(spec.r, max(spec.g, spec.b)), 0.0, 1.0));
+  } else {
+    /* soft neon halo hugging the silhouette (also anti-aliases the edge) */
+    float g = smoothstep(0.05, 0.0, mind);
+    outc = vec4(vec3(0.13,0.83,0.93)*g*0.45, g*0.45);
+  }
+  gl_FragColor = outc;
+}`;
+
+  function compile(gl, type, src){
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src); gl.compileShader(sh);
+    if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){ console.warn('droplet shader:', gl.getShaderInfoLog(sh)); return null; }
+    return sh;
+  }
+
+  function setup(canvas){
+    const wrap = canvas.parentNode;
+    const gl = canvas.getContext('webgl', { alpha:true, premultipliedAlpha:true, antialias:false })
+            || canvas.getContext('experimental-webgl');
+    const fail = ()=>{ wrap.classList.add('no-webgl'); return null; };
+    if(!gl) return fail();
+    const vs = compile(gl, gl.VERTEX_SHADER, VERT), fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
+    if(!vs || !fs) return fail();
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+    if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) return fail();
+    gl.useProgram(prog);
+
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, 'a');
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width  = Math.round(CSS_W * dpr);
+    canvas.height = Math.round(CSS_H * dpr);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0, 0, 0, 0);
+
+    const u = {
+      res:  gl.getUniformLocation(prog, 'uRes'),
+      time: gl.getUniformLocation(prog, 'uTime'),
+      tilt: gl.getUniformLocation(prog, 'uTilt')
+    };
+    canvas.addEventListener('webglcontextlost', e=>{ e.preventDefault(); wrap.classList.add('no-webgl'); });
+    return { canvas, gl, u, drawn:false };
+  }
+
+  const insts = canvases.map(setup).filter(Boolean);
+  if(!insts.length) return;
+
+  /* the droplet leans towards the pointer (smoothed) */
+  let tx = 0, ty = 0, cx = 0, cy = 0;
+  window.addEventListener('pointermove', e=>{
+    tx = (e.clientX / window.innerWidth  - 0.5) * 2;
+    ty = (e.clientY / window.innerHeight - 0.5) * 2;
+  }, { passive:true });
+
+  const t0 = performance.now();
+  function frame(){
+    cx += (tx - cx) * 0.06;
+    cy += (ty - cy) * 0.06;
+    const time = reduce ? 2.0 : (performance.now() - t0) / 1000;
+    for(const it of insts){
+      if(!it.canvas.offsetParent) continue;             /* hidden page / narrow screen -> no work */
+      if(reduce && it.drawn) continue;                  /* reduced motion: a single still frame */
+      const gl = it.gl;
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.uniform2f(it.u.res, it.canvas.width, it.canvas.height);
+      gl.uniform1f(it.u.time, time);
+      gl.uniform2f(it.u.tilt, cx, cy);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      it.drawn = true;
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+
+/* ---------------------------------------------------------------
+   AMBIENT FX: animated rain canvas behind the whole app
+----------------------------------------------------------------*/
+(function rainFX(){
+  const canvas = document.getElementById('fxRain');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let W, H, drops, ripples;
+  function sizeUp(){
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    const count = Math.max(50, Math.floor(W/22));
+    drops = Array.from({length:count}, ()=>({
+      x: Math.random()*W,
+      y: Math.random()*H,
+      r: 1.3 + Math.random()*1.6,
+      tail: 10 + Math.random()*16,
+      speed: 3.5 + Math.random()*6,
+      alpha: 0.18 + Math.random()*0.3
+    }));
+    ripples = [];
+  }
+  function tick(){
+    ctx.clearRect(0,0,W,H);
+
+    /* falling droplets: soft vertical tail + a brighter round head, straight top -> bottom */
+    for(const d of drops){
+      const grad = ctx.createLinearGradient(d.x, d.y - d.tail, d.x, d.y + d.r);
+      grad.addColorStop(0, 'rgba(34,211,238,0)');
+      grad.addColorStop(1, `rgba(125,240,255,${d.alpha})`);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = d.r * 0.9;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(d.x, d.y - d.tail);
+      ctx.lineTo(d.x, d.y);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(179,247,255,${Math.min(1, d.alpha + 0.35)})`;
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      d.y += d.speed;
+      if(d.y - d.tail > H){
+        ripples.push({ x:d.x, y:H - 2, r:2, alpha:0.4 });
+        d.y = -Math.random()*40;
+        d.x = Math.random()*W;
+      }
+    }
+
+    /* ripples where droplets land */
+    for(let i = ripples.length - 1; i >= 0; i--){
+      const p = ripples[i];
+      ctx.beginPath();
+      ctx.strokeStyle = `rgba(103,232,249,${p.alpha})`;
+      ctx.lineWidth = 1;
+      ctx.ellipse(p.x, p.y, p.r, p.r * 0.35, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      p.r += 0.9;
+      p.alpha -= 0.02;
+      if(p.alpha <= 0) ripples.splice(i, 1);
+    }
+
+    requestAnimationFrame(tick);
+  }
+  sizeUp();
+  window.addEventListener('resize', sizeUp);
+  if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    requestAnimationFrame(tick);
+  }
+})();
+
+})();
+</script>
+</body>
+</html>
